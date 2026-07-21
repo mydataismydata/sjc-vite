@@ -1,0 +1,472 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { api } from '../api.js';
+import { Field, Modal, Spinner, useToast, insertAtCursor } from '../ui.jsx';
+import FlyerDesigner from '../components/FlyerDesigner.jsx';
+import RecipientPicker from '../components/RecipientPicker.jsx';
+import TagButtons from '../components/TagButtons.jsx';
+
+const STEPS = ['Event details', 'RSVP options', 'Invitation & flyer', 'Guests', 'Review & send'];
+
+const BLANK = {
+  title: '', description: '', host_name: '', venue_name: '', venue_address: '',
+  date: '', start_time: '', end_time: '', timezone_note: '',
+  rsvp_mode: 'rsvp', rsvp_deadline: '', capacity: '', allow_plus_ones: true,
+  max_party_size: 5, show_guest_list: false, share_enabled: true,
+  email_subject: "You're invited: {{event_title}}",
+  email_body: '',
+  flyer: {
+    style: 'classic', paletteId: 'champagne', colors: null, font: 'serif', scale: 'm',
+    eyebrow: "You're invited", tagline: '', note: '', showHost: true, imageToken: '',
+  },
+};
+
+const DEFAULT_BODY = `Hi {{first_name}},
+
+{{host_name}} invites you to {{event_title}} on {{event_date}}. We'd love to see you there!
+
+Please let us know if you can make it using the buttons below.`;
+
+export default function EventWizard() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const editing = Boolean(id);
+
+  const [eventId, setEventId] = useState(id ? Number(id) : null);
+  const [ev, setEv] = useState(null);
+  const [step, setStep] = useState(0);
+  const [maxStep, setMaxStep] = useState(editing ? STEPS.length - 1 : 0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [recipients, setRecipients] = useState({ contact_ids: [], group_ids: [], new_contacts: [] });
+  const [guests, setGuests] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [emailPreview, setEmailPreview] = useState(null);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [testTo, setTestTo] = useState('');
+  const bodyRef = useRef(null);
+
+  useEffect(() => {
+    api.get('/api/templates').then((d) => setTemplates(d.templates)).catch(() => {});
+    if (editing) {
+      api.get(`/api/events/${id}`).then((d) => {
+        const e = d.event;
+        setEv({
+          ...BLANK,
+          ...Object.fromEntries(Object.keys(BLANK).map((k) => [k, e[k] ?? BLANK[k]])),
+          capacity: e.capacity ?? '',
+          email_body: e.email_body ?? '',
+          email_subject: e.email_subject ?? BLANK.email_subject,
+        });
+      }).catch((err) => setError(err.message));
+      refreshGuests(Number(id));
+    } else {
+      setEv({ ...BLANK, email_body: DEFAULT_BODY });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Apply the org's default template body once templates load (new events only).
+  useEffect(() => {
+    if (editing || !ev || ev.email_body !== DEFAULT_BODY) return;
+    const def = templates.find((t) => t.is_default);
+    if (def?.body) {
+      setEv((cur) => ({ ...cur, email_body: def.body, email_subject: def.subject || cur.email_subject }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates]);
+
+  async function refreshGuests(evId = eventId) {
+    if (!evId) return;
+    try {
+      const d = await api.get(`/api/events/${evId}/guests`);
+      setGuests(d.guests);
+    } catch { /* not fatal */ }
+  }
+
+  function patch(p) {
+    setEv((cur) => ({ ...cur, ...p }));
+  }
+
+  function payload() {
+    return {
+      ...ev,
+      capacity: ev.capacity === '' ? null : Number(ev.capacity),
+      max_party_size: Number(ev.max_party_size) || 5,
+    };
+  }
+
+  async function persist() {
+    setSaving(true);
+    setError('');
+    try {
+      if (!eventId) {
+        const d = await api.post('/api/events', payload());
+        setEventId(d.event.id);
+        return d.event.id;
+      }
+      await api.put(`/api/events/${eventId}`, payload());
+      return eventId;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function persistGuests(evId) {
+    const hasSelection = recipients.contact_ids.length || recipients.group_ids.length
+      || recipients.new_contacts.some((n) => n.name.trim());
+    if (!hasSelection) return;
+    const result = await api.post(`/api/events/${evId}/guests`, {
+      contact_ids: recipients.contact_ids,
+      group_ids: recipients.group_ids,
+      new_contacts: recipients.new_contacts.filter((n) => n.name.trim()),
+      save_new: true,
+    });
+    setRecipients({ contact_ids: [], group_ids: [], new_contacts: [] });
+    await refreshGuests(evId);
+    toast(`${result.added} guest${result.added === 1 ? '' : 's'} added${result.skipped ? ` (${result.skipped} already on the list)` : ''}`);
+  }
+
+  async function goTo(next) {
+    if (next > step && step === 0 && !ev.title.trim()) {
+      setError('Give the event a title first.');
+      return;
+    }
+    try {
+      const evId = await persist();
+      if (step === 3 && next > 3) await persistGuests(evId);
+      setStep(next);
+      setMaxStep((m) => Math.max(m, next));
+      setError('');
+    } catch { /* error shown */ }
+  }
+
+  async function saveDraftAndExit() {
+    try {
+      const evId = await persist();
+      if (step >= 3) await persistGuests(evId);
+      toast('Saved');
+      navigate(`/events/${evId}`);
+    } catch { /* shown */ }
+  }
+
+  async function sendNow() {
+    try {
+      const evId = await persist();
+      await persistGuests(evId);
+      const result = await api.post(`/api/events/${evId}/send`, {});
+      toast(`${result.queued} invitation${result.queued === 1 ? '' : 's'} queued for sending`);
+      navigate(`/events/${evId}`);
+    } catch (err) {
+      setConfirmSend(false);
+      setError(err.message);
+    }
+  }
+
+  async function previewEmail() {
+    try {
+      const evId = await persist();
+      const d = await api.post(`/api/events/${evId}/email-preview`, {
+        kind: 'invitation', subject: ev.email_subject, body: ev.email_body,
+      });
+      setEmailPreview(d);
+    } catch (err) { setError(err.message); }
+  }
+
+  async function sendTest() {
+    try {
+      const evId = await persist();
+      const d = await api.post(`/api/events/${evId}/test-email`, testTo ? { to: testTo } : {});
+      toast(d.status === 'simulated'
+        ? 'Test email rendered in simulation mode — view it under the event\'s Emails tab'
+        : 'Test email sent — check your inbox');
+    } catch (err) { toast(err.message, 'bad'); }
+  }
+
+  const sendable = useMemo(() => guests.filter((g) =>
+    ['not_sent', 'failed'].includes(g.email_status) && !g.response && g.email && !g.unsubscribed).length,
+  [guests]);
+  const pendingSelection = useMemo(() => {
+    const ids = new Set(recipients.contact_ids);
+    return ids.size + recipients.group_ids.length + recipients.new_contacts.filter((n) => n.name.trim()).length;
+  }, [recipients]);
+
+  if (!ev) return <div className="page">{error ? <div className="banner banner-bad">{error}</div> : <Spinner />}</div>;
+
+  const basics = {
+    title: ev.title, host_name: ev.host_name, venue_name: ev.venue_name,
+    venue_address: ev.venue_address, date: ev.date, start_time: ev.start_time,
+    end_time: ev.end_time, timezone_note: ev.timezone_note,
+  };
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">{editing ? `Edit: ${ev.title || 'event'}` : 'New event'}</h1>
+          <p className="page-sub">The wizard saves as you go — leave any time and pick up later.</p>
+        </div>
+        <div className="head-actions">
+          <button className="btn" onClick={saveDraftAndExit} disabled={saving}>Save & exit</button>
+        </div>
+      </div>
+
+      <div className="wiz">
+        <div className="wiz-rail">
+          {STEPS.map((label, i) => (
+            <button key={label}
+              className={`wiz-step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}
+              disabled={i > maxStep}
+              onClick={() => goTo(i)}>
+              <span className="n">{i < step ? '✓' : i + 1}</span> {label}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          {error ? <div className="banner banner-bad">{error}</div> : null}
+
+          {step === 0 ? (
+            <div className="card card-pad">
+              <h2 className="card-title">What's the occasion?</h2>
+              <Field label="Event title *">
+                <input value={ev.title} maxLength={200} placeholder="Summer Gala 2026"
+                  onChange={(e) => patch({ title: e.target.value })} autoFocus />
+              </Field>
+              <div className="field-row">
+                <Field label="Host" hint="Shown as “Hosted by …” on the flyer and emails.">
+                  <input value={ev.host_name} maxLength={200} placeholder="The Events Committee"
+                    onChange={(e) => patch({ host_name: e.target.value })} />
+                </Field>
+                <Field label="Timezone note" hint="Optional, e.g. “Pacific Time”.">
+                  <input value={ev.timezone_note} maxLength={60}
+                    onChange={(e) => patch({ timezone_note: e.target.value })} />
+                </Field>
+              </div>
+              <div className="field-row3">
+                <Field label="Date">
+                  <input type="date" value={ev.date} onChange={(e) => patch({ date: e.target.value })} />
+                </Field>
+                <Field label="Starts">
+                  <input type="time" value={ev.start_time} onChange={(e) => patch({ start_time: e.target.value })} />
+                </Field>
+                <Field label="Ends">
+                  <input type="time" value={ev.end_time} onChange={(e) => patch({ end_time: e.target.value })} />
+                </Field>
+              </div>
+              <div className="field-row">
+                <Field label="Venue name">
+                  <input value={ev.venue_name} maxLength={200} placeholder="Riverside Hall"
+                    onChange={(e) => patch({ venue_name: e.target.value })} />
+                </Field>
+                <Field label="Venue address">
+                  <input value={ev.venue_address} maxLength={400} placeholder="12 River Rd, Springfield"
+                    onChange={(e) => patch({ venue_address: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Description" hint="Shown on the public event page.">
+                <textarea value={ev.description} maxLength={5000} rows={4}
+                  placeholder="Tell guests what to expect…"
+                  onChange={(e) => patch({ description: e.target.value })} />
+              </Field>
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="card card-pad">
+              <h2 className="card-title">How should guests respond?</h2>
+              <div className="seg" style={{ marginBottom: 16 }}>
+                <div className={`seg-opt ${ev.rsvp_mode === 'rsvp' ? 'active' : ''}`}
+                  onClick={() => patch({ rsvp_mode: 'rsvp' })}>
+                  <div className="seg-title">Collect RSVPs</div>
+                  <div className="seg-sub">Guests accept or decline; you see exactly who's coming.</div>
+                </div>
+                <div className={`seg-opt ${ev.rsvp_mode === 'open' ? 'active' : ''}`}
+                  onClick={() => patch({ rsvp_mode: 'open' })}>
+                  <div className="seg-title">Open event</div>
+                  <div className="seg-sub">No RSVP — invitations are informational, everyone's welcome.</div>
+                </div>
+              </div>
+
+              {ev.rsvp_mode === 'rsvp' ? (
+                <>
+                  <div className="field-row">
+                    <Field label="RSVP deadline" hint="After this date responses close. Optional.">
+                      <input type="date" value={ev.rsvp_deadline}
+                        onChange={(e) => patch({ rsvp_deadline: e.target.value })} />
+                    </Field>
+                    <Field label="Capacity" hint="Total places including plus-ones. Leave empty for unlimited.">
+                      <input type="number" min="1" value={ev.capacity}
+                        onChange={(e) => patch({ capacity: e.target.value })} />
+                    </Field>
+                  </div>
+                  <label className="checkbox">
+                    <input type="checkbox" checked={ev.allow_plus_ones}
+                      onChange={(e) => patch({ allow_plus_ones: e.target.checked })} />
+                    <span><span className="cb-label">Allow plus-ones</span>
+                      <div className="cb-sub">Guests can say how many people they're bringing.</div></span>
+                  </label>
+                  {ev.allow_plus_ones ? (
+                    <Field label="Largest party size">
+                      <select value={ev.max_party_size}
+                        onChange={(e) => patch({ max_party_size: Number(e.target.value) })}>
+                        {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </Field>
+                  ) : null}
+                  <label className="checkbox">
+                    <input type="checkbox" checked={ev.show_guest_list}
+                      onChange={(e) => patch({ show_guest_list: e.target.checked })} />
+                    <span><span className="cb-label">Show the guest list on the event page</span>
+                      <div className="cb-sub">First names + last initial of everyone who accepted.</div></span>
+                  </label>
+                </>
+              ) : null}
+
+              <label className="checkbox">
+                <input type="checkbox" checked={ev.share_enabled}
+                  onChange={(e) => patch({ share_enabled: e.target.checked })} />
+                <span><span className="cb-label">Shareable link</span>
+                  <div className="cb-sub">Anyone with the event link can view it{ev.rsvp_mode === 'rsvp' ? ' and RSVP — perfect for forwarding' : ''}. Turn off to limit responses to personal invitations.</div></span>
+              </label>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <div className="card card-pad">
+                <h2 className="card-title">Design the flyer</h2>
+                <FlyerDesigner eventBasics={basics} flyer={ev.flyer}
+                  onChange={(flyer) => patch({ flyer })} />
+              </div>
+              <div className="card card-pad">
+                <h2 className="card-title">Write the invitation email</h2>
+                {templates.length > 0 ? (
+                  <Field label="Start from a template">
+                    <select defaultValue="" onChange={(e) => {
+                      const t = templates.find((x) => x.id === Number(e.target.value));
+                      if (t) patch({ email_subject: t.subject || ev.email_subject, email_body: t.body });
+                    }}>
+                      <option value="" disabled>Choose a template…</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' (default)' : ''}</option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : null}
+                <Field label="Subject">
+                  <input value={ev.email_subject} maxLength={300}
+                    onChange={(e) => patch({ email_subject: e.target.value })} />
+                </Field>
+                <Field label="Message"
+                  hint="Placeholders fill in per guest. Accept / Decline buttons and event details are added automatically below your message.">
+                  <textarea ref={bodyRef} rows={8} value={ev.email_body} maxLength={20000}
+                    onChange={(e) => patch({ email_body: e.target.value })} />
+                  <TagButtons onInsert={(snippet) =>
+                    insertAtCursor(bodyRef, ev.email_body, snippet, (val) => patch({ email_body: val }))} />
+                </Field>
+                <button className="btn" onClick={previewEmail} disabled={saving}>Preview email</button>
+              </div>
+            </>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="card card-pad">
+              <h2 className="card-title">Who's invited?</h2>
+              {guests.length > 0 ? (
+                <div className="banner banner-info">
+                  {guests.length} guest{guests.length === 1 ? '' : 's'} already on the list
+                  {editing ? ' (manage them from the event page)' : ''}. Anyone you pick here is added on top.
+                </div>
+              ) : null}
+              <RecipientPicker value={recipients} onChange={setRecipients}
+                alreadyInvited={new Set(guests.map((g) => g.email).filter(Boolean))} />
+            </div>
+          ) : null}
+
+          {step === 4 ? (
+            <div className="card card-pad">
+              <h2 className="card-title">Review & send</h2>
+              <div className="kv"><span className="k">Event</span><span><strong>{ev.title}</strong></span></div>
+              <div className="kv"><span className="k">When</span>
+                <span>{ev.date ? `${ev.date}${ev.start_time ? ` at ${ev.start_time}` : ''}` : <em>No date yet — required before sending</em>}</span></div>
+              <div className="kv"><span className="k">Where</span>
+                <span>{[ev.venue_name, ev.venue_address].filter(Boolean).join(' — ') || '—'}</span></div>
+              <div className="kv"><span className="k">RSVPs</span>
+                <span>{ev.rsvp_mode === 'rsvp'
+                  ? `Collecting responses${ev.rsvp_deadline ? ` until ${ev.rsvp_deadline}` : ''}${ev.capacity ? ` · capacity ${ev.capacity}` : ''}`
+                  : 'Open event, no RSVP'}</span></div>
+              <div className="kv"><span className="k">Guests</span>
+                <span>{guests.length} on the list{pendingSelection ? ` + ${pendingSelection} to be added` : ''}</span></div>
+              <div className="kv"><span className="k">Subject</span><span>{ev.email_subject}</span></div>
+
+              {!ev.date ? <div className="banner banner-warn mt">Add a date (step 1) before sending invitations.</div> : null}
+
+              <div className="row mt">
+                <button className="btn btn-primary btn-lg"
+                  disabled={saving || !ev.date || (sendable === 0 && pendingSelection === 0)}
+                  onClick={() => setConfirmSend(true)}>
+                  Send invitations
+                </button>
+                <button className="btn btn-lg" onClick={saveDraftAndExit} disabled={saving}>
+                  {ev.date ? 'Save without sending' : 'Save draft'}
+                </button>
+              </div>
+              {sendable === 0 && pendingSelection === 0 ? (
+                <p className="small muted" style={{ marginTop: 8 }}>
+                  No un-emailed guests yet — add guests in step 4, or save and share the event link instead.
+                </p>
+              ) : null}
+
+              <div className="divider" style={{ margin: '18px 0', borderTop: '1px solid var(--line)' }} />
+              <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Send yourself a test first</h3>
+              <div className="row">
+                <input style={{ maxWidth: 280 }} type="email" placeholder="you@example.org (defaults to your login)"
+                  value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+                <button className="btn" onClick={sendTest} disabled={saving}>Send test email</button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="wiz-foot">
+            <button className="btn" onClick={() => goTo(step - 1)} disabled={step === 0 || saving}>← Back</button>
+            {step < STEPS.length - 1 ? (
+              <button className="btn btn-primary" onClick={() => goTo(step + 1)} disabled={saving}>
+                {saving ? 'Saving…' : 'Continue →'}
+              </button>
+            ) : <span />}
+          </div>
+        </div>
+      </div>
+
+      {emailPreview ? (
+        <Modal title={`Preview — ${emailPreview.subject}`} size="lg" onClose={() => setEmailPreview(null)}>
+          <p className="small muted" style={{ marginTop: 0 }}>Rendered for {emailPreview.to}. Buttons in previews link to the event page.</p>
+          <iframe className="email-frame" title="Email preview" srcDoc={emailPreview.html} />
+        </Modal>
+      ) : null}
+
+      {confirmSend ? (
+        <Modal title="Send invitations now?" onClose={() => setConfirmSend(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => setConfirmSend(false)}>Cancel</button>
+              <button className="btn btn-green" onClick={sendNow} disabled={saving}>
+                {saving ? 'Sending…' : 'Yes, send'}
+              </button>
+            </>
+          }>
+          <p style={{ marginTop: 0 }}>
+            Invitation emails will go to every guest on the list who hasn't been emailed yet
+            {pendingSelection ? <> (including the {pendingSelection} you just selected)</> : null}.
+            The event page goes live at the same time.
+          </p>
+        </Modal>
+      ) : null}
+    </div>
+  );
+}

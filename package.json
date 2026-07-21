@@ -1,0 +1,30 @@
+{
+  "name": "sjc-vite",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted, multi-organization event invitations: events, custom flyers, RSVPs, contact lists, and email delivery.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "dev:web": "vite --config web/vite.config.js",
+    "build": "vite build --config web/vite.config.js",
+    "smoke": "node scripts/smoke-test.mjs",
+    "create-org": "node scripts/create-org.mjs",
+    "reset-password": "node scripts/reset-password.mjs",
+    "seed-demo": "node scripts/seed-demo.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "vite": "^6.3.5"
+  }
+}

@@ -1,0 +1,17 @@
+# runtime data (databases, uploads, secrets) — never commit
+data/
+backups/
+
+# environment / secrets
+.env
+
+# dependencies
+node_modules/
+
+# build output (rebuilt from web/ via `npm run build`)
+server/public/app/
+
+# local tooling
+.claude/
+.DS_Store
+*.log

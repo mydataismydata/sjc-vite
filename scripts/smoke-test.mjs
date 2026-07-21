@@ -1,0 +1,414 @@
+#!/usr/bin/env node
+// End-to-end smoke test. Boots the real server against a throwaway data
+// directory and exercises the whole flow over HTTP: organizations, login,
+// contacts, groups, events, sending (simulated), accept/decline links,
+// share-link RSVPs, nudges, exports — plus cross-organization isolation.
+//
+//   npm run smoke
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const PORT = 3870 + Math.floor(Math.random() * 100);
+const BASE = `http://localhost:${PORT}`;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sjc-vite-smoke-'));
+const ENV = { ...process.env, PORT: String(PORT), BASE_URL: BASE, DATA_DIR, NODE_ENV: 'test', SMTP2GO_API_KEY: '' };
+
+let passed = 0;
+const failures = [];
+function check(label, cond, detail = '') {
+  if (cond) { passed++; console.log(`  ok  ${label}`); }
+  else { failures.push(label); console.error(`FAIL  ${label}${detail ? ` — ${detail}` : ''}`); }
+}
+function fatal(msg) {
+  console.error(`FATAL: ${msg}`);
+  cleanup(1);
+}
+
+let server = null;
+function cleanup(code) {
+  if (server) server.kill('SIGTERM');
+  try { fs.rmSync(DATA_DIR, { recursive: true, force: true }); } catch { /* best effort */ }
+  process.exit(code);
+}
+
+// Minimal API client with a cookie jar.
+class Client {
+  constructor() { this.cookie = ''; }
+  async raw(method, url, { body, form, headers = {}, redirect = 'manual' } = {}) {
+    const h = { 'x-requested-with': 'sjc-vite', ...headers };
+    let payload;
+    if (form) {
+      h['content-type'] = 'application/x-www-form-urlencoded';
+      payload = new URLSearchParams(form).toString();
+    } else if (body !== undefined) {
+      h['content-type'] = 'application/json';
+      payload = JSON.stringify(body);
+    }
+    if (this.cookie) h.cookie = this.cookie;
+    const res = await fetch(`${BASE}${url}`, { method, headers: h, body: payload, redirect });
+    const setCookie = res.headers.get('set-cookie');
+    if (setCookie) this.cookie = setCookie.split(';')[0];
+    return res;
+  }
+  async api(method, url, body) {
+    const res = await this.raw(method, url, { body });
+    let data = null;
+    try { data = await res.json(); } catch { /* non-json */ }
+    return { status: res.status, data };
+  }
+}
+
+async function waitForServer() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const res = await fetch(`${BASE}/api/health`);
+      if (res.ok) return;
+    } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  fatal('server did not start');
+}
+
+async function waitFor(fn, label, timeoutMs = 25000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await fn()) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  check(label, false, 'timed out');
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+console.log(`smoke test: data dir ${DATA_DIR}, port ${PORT}`);
+server = spawn('node', ['server/index.js'], { env: ENV, stdio: ['ignore', 'pipe', 'pipe'] });
+server.stdout.on('data', (d) => process.env.SMOKE_VERBOSE && process.stdout.write(`[server] ${d}`));
+server.stderr.on('data', (d) => process.stderr.write(`[server:err] ${d}`));
+await waitForServer();
+console.log('server is up');
+
+// --- create two organizations via the CLI ----------------------------------
+for (const [slug, name, email] of [
+  ['alpha', 'Alpha Society', 'admin@alpha.test'],
+  ['beta', 'Beta Club', 'admin@beta.test'],
+]) {
+  const r = spawnSync('node', ['scripts/create-org.mjs',
+    '--slug', slug, '--name', name, '--admin-email', email,
+    '--admin-name', 'Admin', '--password', 'correct-horse-battery'], { env: ENV, encoding: 'utf8' });
+  check(`create-org ${slug}`, r.status === 0, r.stderr);
+}
+
+const A = new Client();
+const B = new Client();
+
+// --- auth ------------------------------------------------------------------
+{
+  const bad = await A.api('POST', '/api/auth/login', { org: 'alpha', email: 'admin@alpha.test', password: 'wrong-password-x' });
+  check('login rejects bad password', bad.status === 401);
+  const noHeader = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ org: 'alpha', email: 'admin@alpha.test', password: 'correct-horse-battery' }),
+  });
+  check('CSRF header is required', noHeader.status === 403);
+  const ok = await A.api('POST', '/api/auth/login', { org: 'alpha', email: 'admin@alpha.test', password: 'correct-horse-battery' });
+  check('login succeeds', ok.status === 200 && ok.data?.org?.slug === 'alpha');
+  const me = await A.api('GET', '/api/auth/me');
+  check('me returns user', me.status === 200 && me.data?.user?.role === 'admin');
+  const okB = await B.api('POST', '/api/auth/login', { org: 'beta', email: 'admin@beta.test', password: 'correct-horse-battery' });
+  check('org B login succeeds', okB.status === 200);
+}
+
+// --- contacts & groups -----------------------------------------------------
+let contactIds = [];
+let groupId = null;
+{
+  const people = [
+    { name: 'Ava Thompson', email: 'ava@guest.test', phone: '555-1' },
+    { name: 'Ben Okafor', email: 'ben@guest.test' },
+    { name: 'Carmen Diaz', email: 'carmen@guest.test' },
+    { name: 'Phone Only', phone: '555-9' },
+  ];
+  for (const p of people) {
+    const r = await A.api('POST', '/api/contacts', p);
+    check(`create contact ${p.name}`, r.status === 201, JSON.stringify(r.data));
+    contactIds.push(r.data?.contact?.id);
+  }
+  const dup = await A.api('POST', '/api/contacts', { name: 'Dup', email: 'ava@guest.test' });
+  check('duplicate contact email rejected', dup.status === 409);
+
+  const g = await A.api('POST', '/api/groups', { name: 'Choir', contact_ids: contactIds.slice(0, 2) });
+  groupId = g.data?.group?.id;
+  check('create group', g.status === 201 && groupId > 0);
+  const gl = await A.api('GET', '/api/groups');
+  check('group member count', gl.data?.groups?.[0]?.member_count === 2, JSON.stringify(gl.data));
+
+  const imp = await A.api('POST', '/api/contacts/import', {
+    csv: 'name,email,phone\nIris Novak,iris@guest.test,555-2\nAva Thompson,ava@guest.test,555-1\n',
+  });
+  check('CSV import adds 1 / skips duplicate', imp.data?.added === 1 && imp.data?.skipped === 1, JSON.stringify(imp.data));
+  const list = await A.api('GET', '/api/contacts');
+  check('contact list has 5', list.data?.contacts?.length === 5);
+  const iris = list.data.contacts.find((c) => c.email === 'iris@guest.test');
+  if (iris) contactIds.push(iris.id);
+}
+
+// --- templates & merge tags ------------------------------------------------
+{
+  const tags = await A.api('GET', '/api/merge-tags');
+  check('merge tags listed', Array.isArray(tags.data?.tags) && tags.data.tags.some((t) => t.tag === 'accept_link'));
+  const tpl = await A.api('POST', '/api/templates', {
+    name: 'Test template', subject: 'Come to {{event_title}}', body: 'Hi {{first_name}}, see you at {{venue_name}}!',
+  });
+  check('create template', tpl.status === 201);
+}
+
+// --- event lifecycle -------------------------------------------------------
+let eventId = null;
+let eventSlug = null;
+const future = new Date(Date.now() + 10 * 86400_000).toISOString().slice(0, 10);
+const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
+{
+  const r = await A.api('POST', '/api/events', {
+    title: 'Test Gala', description: 'A night to remember', host_name: 'The Committee',
+    venue_name: 'Grand Hall', venue_address: '1 Plaza Way', date: future,
+    start_time: '18:00', end_time: '22:00', rsvp_mode: 'rsvp', rsvp_deadline: deadline,
+    capacity: 50, allow_plus_ones: true, max_party_size: 4, show_guest_list: true,
+  });
+  eventId = r.data?.event?.id;
+  eventSlug = r.data?.event?.slug;
+  check('create event', r.status === 201 && eventId > 0 && /^[a-z0-9]{10}$/.test(eventSlug || ''));
+
+  const upd = await A.api('PUT', `/api/events/${eventId}`, {
+    flyer: { style: 'modern', paletteId: 'midnight', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing' },
+    email_subject: "You're invited: {{event_title}}",
+    email_body: 'Hi {{first_name}},\n\nJoin us at {{venue_name}} on {{event_date}}.\n\nRSVP: {{rsvp_link}}',
+  });
+  check('update event + flyer', upd.status === 200 && upd.data?.event?.flyer?.style === 'modern');
+
+  const draftHidden = await fetch(`${BASE}/o/alpha/e/${eventSlug}`);
+  check('draft landing hidden from public', draftHidden.status === 404);
+  const draftPreview = await A.raw('GET', `/o/alpha/e/${eventSlug}`);
+  check('draft landing visible to signed-in org member', draftPreview.status === 200);
+}
+
+// --- guests + sending ------------------------------------------------------
+{
+  const add = await A.api('POST', `/api/events/${eventId}/guests`, {
+    contact_ids: contactIds.slice(2), group_ids: [groupId],
+  });
+  check('add guests (group + contacts, deduped)', add.data?.added === 5, JSON.stringify(add.data));
+
+  const send = await A.api('POST', `/api/events/${eventId}/send`, {});
+  check('send queues 4 (skips no-email)', send.status === 200 && send.data?.queued === 4 && send.data?.skipped?.no_email === 1,
+    JSON.stringify(send.data));
+
+  const ev = await A.api('GET', `/api/events/${eventId}`);
+  check('event auto-published on send', ev.data?.event?.status === 'published');
+
+  await waitFor(async () => {
+    const r = await A.api('GET', `/api/emails?event_id=${eventId}&status=simulated`);
+    return r.data?.emails?.length === 4;
+  }, 'queue processes 4 invitations (simulated)');
+}
+
+// --- accept via email link -------------------------------------------------
+let guests = [];
+{
+  const g = await A.api('GET', `/api/events/${eventId}/guests`);
+  guests = g.data?.guests || [];
+  check('guest list has 5', guests.length === 5);
+  check('invitations marked sent', guests.filter((x) => x.email_status === 'sent').length === 4);
+
+  const emailDetailId = (await A.api('GET', `/api/emails?event_id=${eventId}`)).data.emails.at(-1).id;
+  const detail = await A.api('GET', `/api/emails/${emailDetailId}`);
+  const html = detail.data?.email?.html || '';
+  check('email html contains accept + decline + unsubscribe links',
+    html.includes('/accept') && html.includes('/decline') && html.includes('/u/'));
+
+  const withEmail = guests.filter((x) => x.email && x.email_status === 'sent');
+  const acceptRes = await fetch(`${BASE}/o/alpha/i/${withEmail[0].token}/accept`, { redirect: 'manual' });
+  check('accept link redirects', acceptRes.status === 303);
+  const landing = await fetch(`${BASE}/o/alpha/i/${withEmail[0].token}?done=accept`);
+  const landingHtml = await landing.text();
+  check('confirmation page renders', landing.status === 200 && landingHtml.includes('Test Gala'));
+
+  const declineRes = await fetch(`${BASE}/o/alpha/i/${withEmail[1].token}/decline`, { redirect: 'manual' });
+  check('decline link redirects', declineRes.status === 303);
+
+  const after = await A.api('GET', `/api/events/${eventId}/guests`);
+  const accepted = after.data.guests.find((x) => x.id === withEmail[0].id);
+  const declined = after.data.guests.find((x) => x.id === withEmail[1].id);
+  check('accept recorded', accepted?.response === 'yes');
+  check('decline recorded', declined?.response === 'no');
+}
+
+// --- share-link RSVP (new person) ------------------------------------------
+{
+  const res = await fetch(`${BASE}/o/alpha/e/${eventSlug}/rsvp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ name: 'Walk In', email: 'walkin@guest.test', attending: 'yes', party_size: '2', note: 'Found the link!' }).toString(),
+    redirect: 'manual',
+  });
+  check('share-link RSVP redirects to personal page', res.status === 303 && (res.headers.get('location') || '').includes('/o/alpha/i/'));
+  const g = await A.api('GET', `/api/events/${eventId}/guests`);
+  const walkin = g.data.guests.find((x) => x.email === 'walkin@guest.test');
+  check('share-link guest recorded as yes +1', walkin?.response === 'yes' && walkin?.party_size === 2 && walkin?.source === 'link');
+
+  const stats = (await A.api('GET', `/api/events/${eventId}`)).data?.stats;
+  check('stats: accepted 2, declined 1, awaiting 2, attending 3',
+    stats?.accepted === 2 && stats?.declined === 1 && stats?.awaiting === 2 && stats?.guests_attending === 3,
+    JSON.stringify(stats));
+}
+
+// --- nudge + follow-up -----------------------------------------------------
+{
+  const nudge = await A.api('POST', `/api/events/${eventId}/message`, {
+    kind: 'nudge', audience: 'pending', body: 'Hi {{first_name}}, please RSVP for {{event_title}}!',
+  });
+  check('nudge goes to 2 pending', nudge.data?.queued === 2, JSON.stringify(nudge.data));
+  const followUp = await A.api('POST', `/api/events/${eventId}/message`, {
+    kind: 'follow_up', audience: 'yes', body: 'See you soon at {{venue_name}}!',
+  });
+  check('follow-up goes to 2 accepted', followUp.data?.queued === 2, JSON.stringify(followUp.data));
+  await waitFor(async () => {
+    const r = await A.api('GET', '/api/emails?status=simulated');
+    return (r.data?.emails || []).filter((e) => e.kind === 'nudge').length === 2
+      && (r.data?.emails || []).filter((e) => e.kind === 'follow_up').length === 2;
+  }, 'queue processes nudges and follow-ups');
+}
+
+// --- email preview + test send ---------------------------------------------
+{
+  const prev = await A.api('POST', `/api/events/${eventId}/email-preview`, { kind: 'invitation' });
+  check('email preview renders', prev.status === 200 && String(prev.data?.html || '').includes('Test Gala'));
+  const test = await A.api('POST', `/api/events/${eventId}/test-email`, {});
+  check('test email simulated', test.data?.status === 'simulated', JSON.stringify(test.data));
+}
+
+// --- uploads + flyer preview -----------------------------------------------
+{
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const up = await A.api('POST', '/api/uploads', { name: 'dot.png', data: png });
+  check('upload accepted', up.status === 201 && up.data?.token, JSON.stringify(up.data));
+  const img = await fetch(`${BASE}/o/alpha/files/${up.data.token}`);
+  check('uploaded file served with mime', img.status === 200 && img.headers.get('content-type') === 'image/png');
+  const bad = await A.api('POST', '/api/uploads', { name: 'x.txt', data: 'data:text/plain;base64,aGVsbG8=' });
+  check('non-image upload rejected', bad.status === 400);
+
+  const fp = await A.raw('POST', '/api/flyer/preview', {
+    body: { event: { title: 'Preview Party', date: future }, flyer: { style: 'festive', paletteId: 'sunset' } },
+  });
+  const fpHtml = await fp.text();
+  check('flyer preview renders', fp.status === 200 && fpHtml.includes('Preview Party'));
+}
+
+// --- public pages ----------------------------------------------------------
+{
+  const landing = await fetch(`${BASE}/o/alpha/e/${eventSlug}`);
+  const html = await landing.text();
+  check('landing page renders with RSVP form + guest list', landing.status === 200
+    && html.includes('Test Gala') && html.includes('Will you be there?') && html.includes("Who's coming"));
+  const ics = await fetch(`${BASE}/o/alpha/e/${eventSlug}/ics`);
+  const icsText = await ics.text();
+  check('ICS download works', ics.status === 200 && icsText.includes('BEGIN:VCALENDAR') && icsText.includes('SUMMARY:Test Gala'));
+}
+
+// --- unsubscribe -----------------------------------------------------------
+{
+  const g = await A.api('GET', `/api/events/${eventId}/guests`);
+  const pending = g.data.guests.find((x) => x.response === null && x.email);
+  const unsub = await fetch(`${BASE}/o/alpha/u/${pending.token}`, { method: 'POST', redirect: 'manual' });
+  check('unsubscribe works', unsub.status === 200);
+  const contacts = await A.api('GET', '/api/contacts');
+  const unsubbed = contacts.data.contacts.find((c) => c.email === pending.email);
+  check('contact marked unsubscribed', Boolean(unsubbed?.unsubscribed_at));
+  const nudge2 = await A.api('POST', `/api/events/${eventId}/message`, {
+    kind: 'nudge', audience: 'pending', body: 'Second reminder for {{event_title}}',
+  });
+  check('unsubscribed guest skipped in later sends', nudge2.data?.skipped?.unsubscribed >= 1, JSON.stringify(nudge2.data));
+}
+
+// --- exports ---------------------------------------------------------------
+{
+  const csv = await A.raw('GET', '/api/export/contacts.csv');
+  const text = await csv.text();
+  check('contacts CSV export', csv.status === 200 && text.includes('Ava Thompson'));
+  const guestsCsv = await A.raw('GET', `/api/export/events/${eventId}/guests.csv`);
+  const gtext = await guestsCsv.text();
+  check('guests CSV export', guestsCsv.status === 200 && gtext.includes('walkin@guest.test'));
+  const backup = await A.api('GET', '/api/export/backup.json');
+  check('JSON backup', backup.status === 200 && backup.data?.contacts?.length === 5 && backup.data?.events?.length === 1);
+  const quota = await A.api('GET', '/api/quota');
+  check('quota reports simulation mode + month count', quota.data?.mode === 'simulation' && quota.data?.month_emails >= 8,
+    JSON.stringify(quota.data));
+}
+
+// --- ISOLATION: organization B sees nothing of organization A --------------
+{
+  const contacts = await B.api('GET', '/api/contacts');
+  check('ISOLATION: B has zero contacts', contacts.data?.contacts?.length === 0);
+  const events = await B.api('GET', '/api/events');
+  check('ISOLATION: B has zero events', events.data?.events?.length === 0);
+  const ev = await B.api('GET', `/api/events/${eventId}`);
+  check('ISOLATION: B cannot fetch A\'s event id', ev.status === 404);
+  const guests = await B.api('GET', `/api/events/${eventId}/guests`);
+  check('ISOLATION: B cannot fetch A\'s guests', guests.status === 404);
+
+  // Forge a cookie: take A's valid session but claim org "beta".
+  const parts = decodeURIComponent(A.cookie.split('=').slice(1).join('=')).split('.');
+  const forged = encodeURIComponent(`beta.${parts[1]}.${parts[2]}`);
+  const forgedRes = await fetch(`${BASE}/api/auth/me`, {
+    headers: { cookie: `sv_session=${forged}`, 'x-requested-with': 'sjc-vite' },
+  });
+  check('ISOLATION: forged org-swapped cookie rejected', forgedRes.status === 401);
+
+  // A's session token replayed inside B's org namespace must also fail even
+  // with a fresh valid signature — B's database has no such session row.
+  const noAuth = await fetch(`${BASE}/api/contacts`, { headers: { 'x-requested-with': 'sjc-vite' } });
+  check('no cookie -> 401', noAuth.status === 401);
+}
+
+// --- open events + cancel + duplicate --------------------------------------
+{
+  const open = await A.api('POST', '/api/events', { title: 'Open House', date: future, rsvp_mode: 'open' });
+  await A.api('POST', `/api/events/${open.data.event.id}/publish`, {});
+  const page = await fetch(`${BASE}/o/alpha/e/${open.data.event.slug}`);
+  const html = await page.text();
+  check('open event landing shows no-RSVP message', html.includes('No RSVP needed'));
+
+  const dup = await A.api('POST', `/api/events/${eventId}/duplicate`, {});
+  check('duplicate event', dup.status === 201 && dup.data?.event?.title === 'Copy of Test Gala' && dup.data?.event?.status === 'draft');
+
+  const cancel = await A.api('POST', `/api/events/${eventId}/cancel`, { notify: true });
+  check('cancel notifies responded+contacted guests', cancel.status === 200 && cancel.data?.notified >= 3, JSON.stringify(cancel.data));
+  const cancelledLanding = await fetch(`${BASE}/o/alpha/e/${eventSlug}`);
+  const cHtml = await cancelledLanding.text();
+  check('cancelled landing shows banner, no RSVP form', cHtml.includes('cancelled') && !cHtml.includes('Will you be there?'));
+}
+
+// --- users admin -----------------------------------------------------------
+{
+  const nu = await A.api('POST', '/api/users', { name: 'Second Member', email: 'member@alpha.test', role: 'member' });
+  check('admin creates user with temp password', nu.status === 201 && nu.data?.temp_password?.length >= 10);
+  const memberClient = new Client();
+  const login = await memberClient.api('POST', '/api/auth/login', { org: 'alpha', email: 'member@alpha.test', password: nu.data.temp_password });
+  check('new member can sign in', login.status === 200);
+  const forbidden = await memberClient.api('GET', '/api/users');
+  check('member cannot access user admin', forbidden.status === 403);
+  const selfDemote = await A.api('PUT', `/api/users/${(await A.api('GET', '/api/auth/me')).data.user.id}`, { role: 'member' });
+  check('cannot demote self', selfDemote.status === 400);
+}
+
+// ---------------------------------------------------------------------------
+console.log('');
+if (failures.length === 0) {
+  console.log(`ALL ${passed} CHECKS PASSED`);
+  cleanup(0);
+} else {
+  console.error(`${failures.length} FAILED (of ${passed + failures.length}):`);
+  for (const f of failures) console.error(`  - ${f}`);
+  cleanup(1);
+}

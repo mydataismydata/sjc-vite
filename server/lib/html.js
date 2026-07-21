@@ -1,0 +1,98 @@
+// HTML escaping and the shared shell for public pages (event landing pages,
+// RSVP pages, unsubscribe). Public pages are server-rendered, self-contained
+// (inline CSS, no scripts required) and work in any browser or email webview.
+
+export function esc(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// Multiline plain text -> paragraphs. Blank lines split paragraphs; single
+// newlines become <br>. Input is escaped, so user text cannot inject HTML.
+export function textToHtml(text) {
+  const paragraphs = String(text || '').trim().split(/\n\s*\n/);
+  return paragraphs
+    .filter((p) => p.trim())
+    .map((p) => `<p>${esc(p.trim()).replaceAll('\n', '<br>')}</p>`)
+    .join('\n');
+}
+
+const PUBLIC_CSS = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #26272b; line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .pub-wrap { max-width: 700px; margin: 0 auto; padding: 28px 16px 64px; }
+  .pub-card {
+    background: #ffffff; border-radius: 14px; padding: 28px;
+    box-shadow: 0 1px 3px rgba(15, 15, 20, 0.09), 0 8px 28px rgba(15, 15, 20, 0.07);
+    margin-top: 20px;
+  }
+  .pub-card h2 { font-size: 19px; margin-bottom: 12px; }
+  .pub-muted { color: #6b6f76; font-size: 14px; }
+  .pub-detail { display: flex; gap: 10px; padding: 7px 0; font-size: 15.5px; }
+  .pub-detail .k { min-width: 84px; color: #6b6f76; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.06em; padding-top: 2px; }
+  .pub-btn {
+    display: inline-block; border: 0; cursor: pointer; text-decoration: none; text-align: center;
+    font-size: 16px; font-weight: 700; padding: 13px 30px; border-radius: 9px;
+    font-family: inherit;
+  }
+  .pub-btn-yes { background: #16a34a; color: #ffffff; }
+  .pub-btn-no { background: #ffffff; color: #b91c1c; border: 2px solid #dc2626; }
+  .pub-btn-plain { background: #26272b; color: #ffffff; font-weight: 600; font-size: 14.5px;
+    padding: 10px 20px; }
+  .pub-btn-ghost { background: #f1f2f4; color: #26272b; font-weight: 600; font-size: 14.5px;
+    padding: 10px 20px; }
+  .pub-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .pub-field { margin-bottom: 14px; }
+  .pub-field label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
+  .pub-field input, .pub-field select, .pub-field textarea {
+    width: 100%; font-size: 15.5px; font-family: inherit; padding: 10px 12px;
+    border: 1.5px solid #d5d8dd; border-radius: 8px; background: #fff; color: inherit;
+  }
+  .pub-field input:focus, .pub-field select:focus, .pub-field textarea:focus {
+    outline: 2px solid #6366f1; outline-offset: 1px; border-color: #6366f1;
+  }
+  .pub-banner { border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 600;
+    margin-top: 20px; }
+  .pub-banner-ok { background: #dcfce7; color: #14532d; }
+  .pub-banner-no { background: #fee2e2; color: #7f1d1d; }
+  .pub-banner-warn { background: #fef3c7; color: #713f12; }
+  .pub-footer { text-align: center; margin-top: 28px; font-size: 12.5px; color: #9a9ea6; }
+  .pub-footer a { color: #9a9ea6; }
+  .pub-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pub-chip { background: #f1f2f4; border-radius: 999px; padding: 5px 14px; font-size: 13.5px; }
+  @media (max-width: 480px) {
+    .pub-card { padding: 20px 16px; }
+    .pub-actions .pub-btn { flex: 1 1 100%; }
+  }
+`;
+
+export function publicPage({ title, bodyHtml, pageBg = '#f2f3f5', footerHtml = '' }) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${esc(title)}</title>
+<link rel="icon" href="data:,">
+<style>${PUBLIC_CSS}
+  body { background: ${esc(pageBg)}; }
+</style>
+</head>
+<body>
+<div class="pub-wrap">
+${bodyHtml}
+<div class="pub-footer">${footerHtml}</div>
+</div>
+</body>
+</html>`;
+}
