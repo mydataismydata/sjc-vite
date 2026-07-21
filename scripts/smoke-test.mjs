@@ -105,19 +105,20 @@ const B = new Client();
 
 // --- auth ------------------------------------------------------------------
 {
-  const bad = await A.api('POST', '/api/auth/login', { org: 'alpha', email: 'admin@alpha.test', password: 'wrong-password-x' });
+  const bad = await A.api('POST', '/api/auth/login', { email: 'admin@alpha.test', password: 'wrong-password-x' });
   check('login rejects bad password', bad.status === 401);
   const noHeader = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ org: 'alpha', email: 'admin@alpha.test', password: 'correct-horse-battery' }),
+    body: JSON.stringify({ email: 'admin@alpha.test', password: 'correct-horse-battery' }),
   });
   check('CSRF header is required', noHeader.status === 403);
-  const ok = await A.api('POST', '/api/auth/login', { org: 'alpha', email: 'admin@alpha.test', password: 'correct-horse-battery' });
-  check('login succeeds', ok.status === 200 && ok.data?.org?.slug === 'alpha');
+  // Email alone routes to the owning org — no organization field needed.
+  const ok = await A.api('POST', '/api/auth/login', { email: 'admin@alpha.test', password: 'correct-horse-battery' });
+  check('login succeeds and resolves org from email', ok.status === 200 && ok.data?.org?.slug === 'alpha');
   const me = await A.api('GET', '/api/auth/me');
   check('me returns user', me.status === 200 && me.data?.user?.role === 'admin');
-  const okB = await B.api('POST', '/api/auth/login', { org: 'beta', email: 'admin@beta.test', password: 'correct-horse-battery' });
-  check('org B login succeeds', okB.status === 200);
+  const okB = await B.api('POST', '/api/auth/login', { email: 'admin@beta.test', password: 'correct-horse-battery' });
+  check('org B login succeeds and resolves to beta', okB.status === 200 && okB.data?.org?.slug === 'beta');
 }
 
 // --- contacts & groups -----------------------------------------------------
@@ -394,7 +395,7 @@ let guests = [];
   const nu = await A.api('POST', '/api/users', { name: 'Second Member', email: 'member@alpha.test', role: 'member' });
   check('admin creates user with temp password', nu.status === 201 && nu.data?.temp_password?.length >= 10);
   const memberClient = new Client();
-  const login = await memberClient.api('POST', '/api/auth/login', { org: 'alpha', email: 'member@alpha.test', password: nu.data.temp_password });
+  const login = await memberClient.api('POST', '/api/auth/login', { email: 'member@alpha.test', password: nu.data.temp_password });
   check('new member can sign in', login.status === 200);
   const forbidden = await memberClient.api('GET', '/api/users');
   check('member cannot access user admin', forbidden.status === 403);

@@ -65,11 +65,13 @@ A cross-tenant query is not a bug that validation must catch — it is
 structurally impossible, since every request handler only ever holds the
 single database belonging to the authenticated session's organization.
 
-Logins are per-organization (the sign-in form asks for the organization's
-short name), session cookies are HMAC-signed and bound to the organization
-that issued them, and session tokens are stored hashed inside that
-organization's own database. The tiny shared `data/core.db` holds only the
-registry of organization names.
+Sign-in is just **email + password** — the app finds which organization owns
+that email (the password disambiguates in the rare case an address exists in
+two orgs) and binds the session to it; no "organization" field to type.
+Session cookies are HMAC-signed and bound to the organization that issued
+them, and session tokens are stored hashed inside that organization's own
+database. The tiny shared `data/core.db` holds only the registry of
+organization names.
 
 Creating an organization deliberately requires server access:
 

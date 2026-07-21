@@ -8,10 +8,12 @@ Each organization is completely separate: its own sign-in accounts, contacts,
 groups, templates, events, and email history live in their own database.
 Nothing is shared or visible across organizations.
 
-Sign in at `/app/` with three things: the **organization** short name (its
-"slug"), your **email**, and your **password**. Organizations are created by
-the server operator with `node scripts/create-org.mjs …`, which prints the
-first administrator's credentials.
+Sign in at `/app/` with just your **email** and **password** — the app works
+out which organization you belong to from your email address, so there's no
+organization field to fill in. Organizations are created by the server
+operator with `node scripts/create-org.mjs …`, which prints the first
+administrator's credentials. (The organization's short "slug" still appears
+in public event URLs like `/o/your-org/e/…`, but you never type it to log in.)
 
 **Roles.** Admins manage settings and team members; members do everything
 else (events, contacts, sending). Add teammates in **Settings → Team

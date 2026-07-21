@@ -43,10 +43,10 @@ try {
   });
   console.log('');
   console.log(`Organization created: ${org.name} (${org.slug})`);
-  console.log(`  Sign-in URL:   ${config.baseUrl}/app/`);
-  console.log(`  Organization:  ${org.slug}`);
+  console.log(`  Sign-in URL:   ${config.baseUrl}/app/  (sign in with email + password)`);
   console.log(`  Email:         ${adminEmail}`);
   console.log(`  Password:      ${values.password ? '(as provided)' : password}`);
+  console.log(`  Public pages:  ${config.baseUrl}/o/${org.slug}/…  (the slug appears only in event URLs)`);
   if (!values.password) {
     console.log('');
     console.log('Store this password now — it is not shown again. It can be changed after signing in.');

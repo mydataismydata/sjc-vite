@@ -171,7 +171,6 @@ db.prepare(`
 console.log('');
 console.log('Demo organization created.');
 console.log(`  Sign-in URL:   ${config.baseUrl}/app/`);
-console.log('  Organization:  demo');
 console.log('  Email:         demo@example.com');
 console.log(`  Password:      ${PASSWORD}`);
 console.log('');
