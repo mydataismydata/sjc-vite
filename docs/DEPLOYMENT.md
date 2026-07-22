@@ -158,17 +158,20 @@ start the service.
 
 ### 7. Updating
 
+Whenever there are new changes on GitHub, redeploy in one step with the
+bundled script:
+
 ```bash
-su - app
-cd sjc-vite
-git pull
-npm install
-npm run build
-exit
-systemctl restart sjc-vite
+cd ~/sjc-vite
+./update.sh
 ```
 
-Database migrations run automatically at startup.
+It pulls the latest code, installs dependencies, rebuilds the admin app,
+restarts the service, and waits for the health check to pass. Database
+migrations run automatically at startup, so there's nothing else to do.
+
+(First time only — to fetch the script itself — run `git pull` once, then
+`./update.sh` from then on.)
 
 ---
 
