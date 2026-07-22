@@ -73,6 +73,12 @@ export const v = {
     if (!allowed.includes(value)) throw new ApiError(400, `${label} must be one of: ${allowed.join(', ')}`);
     return value;
   },
+  url(value, { label = 'URL', required = false } = {}) {
+    const s = v.str(value, { label, required, max: 2000 });
+    if (!s && !required) return '';
+    if (!/^https?:\/\/[^\s]+$/i.test(s)) throw new ApiError(400, `${label} must be a valid link starting with http:// or https://`);
+    return s;
+  },
   hexColor(value, { label = 'color', fallback = null } = {}) {
     if (value === undefined || value === null || value === '') return fallback;
     const s = String(value).trim();

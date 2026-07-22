@@ -165,6 +165,27 @@ let groupId = null;
   check('create template', tpl.status === 201);
 }
 
+// --- venues ----------------------------------------------------------------
+{
+  const created = await A.api('POST', '/api/venues', {
+    name: 'Grand Hall', address: '1 Plaza Way', phone: '(555) 100-2000',
+    map_url: 'https://maps.example.com/grandhall',
+  });
+  check('create venue', created.status === 201 && created.data?.venue?.id > 0);
+  const dup = await A.api('POST', '/api/venues', { name: 'grand hall' });
+  check('duplicate venue name rejected (case-insensitive)', dup.status === 409);
+  const badUrl = await A.api('POST', '/api/venues', { name: 'Bad', map_url: 'javascript:alert(1)' });
+  check('unsafe map link rejected', badUrl.status === 400);
+  const list = await A.api('GET', '/api/venues');
+  check('venue list', list.data?.venues?.length === 1 && list.data.venues[0].phone === '(555) 100-2000');
+  const upd = await A.api('PUT', `/api/venues/${created.data.venue.id}`, { phone: '(555) 111-3000' });
+  check('update venue', upd.status === 200);
+  const merge = await A.api('GET', '/api/merge-tags');
+  check('venue_phone merge tag present', merge.data.tags.some((t) => t.tag === 'venue_phone'));
+  const tmp = await A.api('POST', '/api/venues', { name: 'Temp Venue' });
+  check('delete venue', (await A.api('DELETE', `/api/venues/${tmp.data.venue.id}`)).status === 200);
+}
+
 // --- event lifecycle -------------------------------------------------------
 let eventId = null;
 let eventSlug = null;
@@ -173,8 +194,9 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
 {
   const r = await A.api('POST', '/api/events', {
     title: 'Test Gala', description: 'A night to remember', host_name: 'The Committee',
-    venue_name: 'Grand Hall', venue_address: '1 Plaza Way', date: future,
-    start_time: '18:00', end_time: '22:00', rsvp_mode: 'rsvp', rsvp_deadline: deadline,
+    venue_name: 'Grand Hall', venue_address: '1 Plaza Way',
+    venue_phone: '(555) 100-2000', venue_map_url: 'https://maps.example.com/grandhall',
+    date: future, start_time: '18:00', end_time: '22:00', rsvp_mode: 'rsvp', rsvp_deadline: deadline,
     capacity: 50, allow_plus_ones: true, max_party_size: 4, show_guest_list: true,
   });
   eventId = r.data?.event?.id;
@@ -312,6 +334,9 @@ let guests = [];
   const html = await landing.text();
   check('landing page renders with RSVP form + guest list', landing.status === 200
     && html.includes('Test Gala') && html.includes('Will you be there?') && html.includes("Who's coming"));
+  check('landing page shows venue phone + directions link', landing.status === 200
+    && html.includes('(555) 100-2000') && html.includes('Get directions')
+    && html.includes('https://maps.example.com/grandhall'));
   const ics = await fetch(`${BASE}/o/alpha/e/${eventSlug}/ics`);
   const icsText = await ics.text();
   check('ICS download works', ics.status === 200 && icsText.includes('BEGIN:VCALENDAR') && icsText.includes('SUMMARY:Test Gala'));
@@ -340,6 +365,9 @@ let guests = [];
   const guestsCsv = await A.raw('GET', `/api/export/events/${eventId}/guests.csv`);
   const gtext = await guestsCsv.text();
   check('guests CSV export', guestsCsv.status === 200 && gtext.includes('walkin@guest.test'));
+  const venuesCsv = await A.raw('GET', '/api/export/venues.csv');
+  const vtext = await venuesCsv.text();
+  check('venues CSV export', venuesCsv.status === 200 && vtext.includes('Grand Hall'));
   const backup = await A.api('GET', '/api/export/backup.json');
   check('JSON backup', backup.status === 200 && backup.data?.contacts?.length === 5 && backup.data?.events?.length === 1);
   const quota = await A.api('GET', '/api/quota');

@@ -35,6 +35,9 @@ organizations from one installation**, with hard isolation between them.
 - Contact list with names, emails, phone numbers, and notes
 - CSV import (flexible headers, safe to re-import) and CSV export
 - Groups ("Choir", "Volunteers", …) — invite a whole group in one click
+- Reusable **venue library** (name, address, phone, map link) — pick a saved
+  venue in the wizard or add a new one without leaving it; guests get a
+  tap-to-call phone and a "Get directions" link on the event page
 - Unsubscribe link in every email footer; unsubscribed contacts are
   automatically skipped and reported
 

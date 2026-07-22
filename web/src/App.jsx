@@ -9,6 +9,7 @@ import EventDetail from './pages/EventDetail.jsx';
 import EventWizard from './pages/EventWizard.jsx';
 import Contacts from './pages/Contacts.jsx';
 import Groups from './pages/Groups.jsx';
+import Venues from './pages/Venues.jsx';
 import Templates from './pages/Templates.jsx';
 import Settings from './pages/Settings.jsx';
 
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/events', label: 'Events', icon: '🎟' },
   { to: '/contacts', label: 'Contacts', icon: '👤' },
   { to: '/groups', label: 'Groups', icon: '👥' },
+  { to: '/venues', label: 'Venues', icon: '📍' },
   { to: '/templates', label: 'Templates', icon: '📝' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
@@ -103,6 +105,7 @@ export default function App() {
             <Route path="/events/:id/edit" element={<EventWizard />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/groups" element={<Groups />} />
+            <Route path="/venues" element={<Venues />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

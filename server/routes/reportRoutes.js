@@ -87,6 +87,17 @@ reportRouter.get('/export/groups.csv', wrap(async (req, res) => {
   ]));
 }));
 
+reportRouter.get('/export/venues.csv', wrap(async (req, res) => {
+  const rows = req.db.prepare('SELECT * FROM venues ORDER BY name COLLATE NOCASE').all();
+  sendCsv(res, 'venues.csv', toCsv(rows, [
+    { key: 'name', label: 'name' },
+    { key: 'address', label: 'address' },
+    { key: 'phone', label: 'phone' },
+    { key: 'map_url', label: 'map_url' },
+    { key: 'created_at', label: 'created_at' },
+  ]));
+}));
+
 reportRouter.get('/export/events.csv', wrap(async (req, res) => {
   const rows = req.db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all()
     .map((ev) => ({ ...ev, ...eventStats(req.db, ev.id), share_url: publicUrl(req.org.slug, `/e/${ev.slug}`) }));
@@ -98,6 +109,8 @@ reportRouter.get('/export/events.csv', wrap(async (req, res) => {
     { key: 'end_time', label: 'end_time' },
     { key: 'venue_name', label: 'venue_name' },
     { key: 'venue_address', label: 'venue_address' },
+    { key: 'venue_phone', label: 'venue_phone' },
+    { key: 'venue_map_url', label: 'venue_map_url' },
     { key: 'rsvp_mode', label: 'rsvp_mode' },
     { key: 'rsvp_deadline', label: 'rsvp_deadline' },
     { key: 'capacity', label: 'capacity' },

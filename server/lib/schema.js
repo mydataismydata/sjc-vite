@@ -164,4 +164,22 @@ export const ORG_MIGRATIONS = [
     value TEXT
   );
   `,
+
+  // Migration 2: a reusable venue library. Events keep snapshotting their
+  // venue_name/venue_address (so past invitations never change under you and
+  // deleting a venue can't break an event); picking a saved venue simply
+  // fills those fields, plus the new phone / map-link fields.
+  `
+  CREATE TABLE venues (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT,
+    phone TEXT,
+    map_url TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  ALTER TABLE events ADD COLUMN venue_phone TEXT;
+  ALTER TABLE events ADD COLUMN venue_map_url TEXT;
+  `,
 ];

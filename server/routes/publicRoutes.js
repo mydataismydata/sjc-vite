@@ -103,16 +103,21 @@ function calendarButtons(req, event, icsPath) {
 }
 
 function detailsCard(event) {
+  const tel = String(event.venue_phone || '').replace(/[^\d+]/g, '');
   const rows = [
-    ['When', formatWhen(event)],
-    ['Where', [event.venue_name, event.venue_address].filter(Boolean).join(' — ')],
-    ['Host', event.host_name || ''],
-    event.rsvp_mode === 'rsvp' && event.rsvp_deadline ? ['RSVP by', formatDate(event.rsvp_deadline)] : null,
-  ].filter((r) => r && r[1]);
+    { k: 'When', v: formatWhen(event) },
+    { k: 'Where', v: [event.venue_name, event.venue_address].filter(Boolean).join(' — ') },
+    event.venue_phone ? { k: 'Phone', html: `<a href="tel:${esc(tel)}">${esc(event.venue_phone)}</a>` } : null,
+    event.venue_map_url
+      ? { k: 'Map', html: `<a href="${esc(event.venue_map_url)}" target="_blank" rel="noopener noreferrer">Get directions ↗</a>` }
+      : null,
+    { k: 'Host', v: event.host_name || '' },
+    event.rsvp_mode === 'rsvp' && event.rsvp_deadline ? { k: 'RSVP by', v: formatDate(event.rsvp_deadline) } : null,
+  ].filter((r) => r && (r.v || r.html));
   if (!rows.length && !event.description) return '';
   return `<div class="pub-card">
     ${event.description ? `<div style="font-size:15.5px; margin-bottom:${rows.length ? '16px' : '0'};">${textToHtml(event.description)}</div>` : ''}
-    ${rows.map(([k, val]) => `<div class="pub-detail"><div class="k">${esc(k)}</div><div>${esc(val)}</div></div>`).join('')}
+    ${rows.map((r) => `<div class="pub-detail"><div class="k">${esc(r.k)}</div><div>${r.html || esc(r.v)}</div></div>`).join('')}
   </div>`;
 }
 

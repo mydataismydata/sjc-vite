@@ -33,17 +33,22 @@ function detailsBox({ event, links }) {
   const rows = [
     detailRow('When', formatWhen(event)),
     detailRow('Where', [event.venue_name, event.venue_address].filter(Boolean).join(' — ')),
+    detailRow('Phone', event.venue_phone || ''),
     detailRow('Host', event.host_name || ''),
     event.rsvp_mode === 'rsvp' && event.rsvp_deadline
       ? detailRow('RSVP by', formatDate(event.rsvp_deadline)) : '',
   ].filter(Boolean).join('');
   if (!rows) return '';
+  const eventLink = links?.event
+    ? `<a href="${esc(links.event)}" style="color:#4f46e5;">Open the event page</a>` : '';
+  const directions = event.venue_map_url
+    ? `<a href="${esc(event.venue_map_url)}" style="color:#4f46e5;">Get directions</a>` : '';
+  const linkLine = [eventLink, directions].filter(Boolean).join(' &nbsp;·&nbsp; ');
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
     style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; margin:22px 0 6px;">
     <tr><td style="padding:16px 20px;">
       <table role="presentation" cellpadding="0" cellspacing="0">${rows}</table>
-      ${links?.event ? `<div style="padding-top:10px; font-size:13.5px;">
-        <a href="${esc(links.event)}" style="color:#4f46e5;">Open the event page</a></div>` : ''}
+      ${linkLine ? `<div style="padding-top:10px; font-size:13.5px;">${linkLine}</div>` : ''}
     </td></tr></table>`;
 }
 

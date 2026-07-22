@@ -5,11 +5,13 @@ import { Field, Modal, Spinner, useToast, insertAtCursor } from '../ui.jsx';
 import FlyerDesigner from '../components/FlyerDesigner.jsx';
 import RecipientPicker from '../components/RecipientPicker.jsx';
 import TagButtons from '../components/TagButtons.jsx';
+import VenuePicker from '../components/VenuePicker.jsx';
 
 const STEPS = ['Event details', 'RSVP options', 'Invitation & flyer', 'Guests', 'Review & send'];
 
 const BLANK = {
   title: '', description: '', host_name: '', venue_name: '', venue_address: '',
+  venue_phone: '', venue_map_url: '',
   date: '', start_time: '', end_time: '', timezone_note: '',
   rsvp_mode: 'rsvp', rsvp_deadline: '', capacity: '', allow_plus_ones: true,
   max_party_size: 5, show_guest_list: false, share_enabled: true,
@@ -258,16 +260,12 @@ export default function EventWizard() {
                   <input type="time" value={ev.end_time} onChange={(e) => patch({ end_time: e.target.value })} />
                 </Field>
               </div>
-              <div className="field-row">
-                <Field label="Venue name">
-                  <input value={ev.venue_name} maxLength={200} placeholder="Riverside Hall"
-                    onChange={(e) => patch({ venue_name: e.target.value })} />
-                </Field>
-                <Field label="Venue address">
-                  <input value={ev.venue_address} maxLength={400} placeholder="12 River Rd, Springfield"
-                    onChange={(e) => patch({ venue_address: e.target.value })} />
-                </Field>
-              </div>
+              <VenuePicker
+                value={{
+                  venue_name: ev.venue_name, venue_address: ev.venue_address,
+                  venue_phone: ev.venue_phone, venue_map_url: ev.venue_map_url,
+                }}
+                onChange={patch} />
               <Field label="Description" hint="Shown on the public event page.">
                 <textarea value={ev.description} maxLength={5000} rows={4}
                   placeholder="Tell guests what to expect…"

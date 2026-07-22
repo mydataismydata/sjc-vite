@@ -36,6 +36,19 @@ duplicates.
 them on the Groups page, or select contacts and use *Add to group…*. In the
 event wizard you invite a whole group with one click.
 
+## Venues
+
+The **Venues** page is a library of the places you host at — each with a name,
+address, phone, and a map link (a Google Maps or directions URL). Save a venue
+once and reuse it for every event.
+
+In the event wizard's first step, the **Venue** dropdown fills the address,
+phone, and map link from any saved venue in one click — or you can type a
+one-off. Started the wizard and realized the venue isn't saved yet? Just type
+the details and hit **"Save these details as a reusable venue"** — it's added
+to your library without leaving the wizard. On the public event page, guests
+see the phone as a tap-to-call link and a **"Get directions"** link to the map.
+
 **Unsubscribes.** Every email carries an unsubscribe link in its footer.
 Unsubscribed people are marked in your contact list, skipped automatically by
 every send, and reported ("2 unsubscribed skipped"). You can also toggle the
@@ -74,7 +87,7 @@ automatically ends with the event-details card and the big green
 leave and resume any time (it stays a draft until you send or publish).
 
 1. **Event details** — title (required), host, date/times, timezone note,
-   venue, description.
+   venue (pick a saved one or add a new one right here), description.
 2. **RSVP options** — *Collect RSVPs* or *Open event* (no RSVP; invitations
    become informational with a "View event" button). For RSVP events:
    optional deadline (responses close after it), optional capacity (total
