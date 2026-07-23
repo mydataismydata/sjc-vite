@@ -19,6 +19,22 @@ export function eventStats(db, eventId) {
   return stats;
 }
 
+// Delivery stats for one broadcast, drawn from its email_log rows (broadcasts
+// have no per-recipient table — the log is the record).
+export function broadcastStats(db, broadcastId) {
+  const row = db.prepare(`
+    SELECT
+      COUNT(*) AS recipients,
+      SUM(CASE WHEN status IN ('sent', 'simulated') THEN 1 ELSE 0 END) AS sent,
+      SUM(CASE WHEN status IN ('queued', 'sending') THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+    FROM email_log WHERE broadcast_id = ? AND kind = 'broadcast'
+  `).get(broadcastId);
+  const stats = {};
+  for (const [k, val] of Object.entries(row)) stats[k] = Number(val || 0);
+  return stats;
+}
+
 export function monthEmailCount(db) {
   const row = db.prepare(`
     SELECT COUNT(*) AS n FROM email_log

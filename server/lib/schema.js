@@ -182,4 +182,57 @@ export const ORG_MIGRATIONS = [
   ALTER TABLE events ADD COLUMN venue_phone TEXT;
   ALTER TABLE events ADD COLUMN venue_map_url TEXT;
   `,
+
+  // Migration 3: standalone broadcasts (email blasts not tied to an event).
+  // A broadcast reuses the flyer designer, templates and the email queue, but
+  // has no RSVP/guest tracking — the email_log rows are its per-recipient
+  // record. email_log gains a broadcast_id and its kind CHECK is widened to
+  // allow 'broadcast', which requires rebuilding the table (SQLite cannot
+  // alter a CHECK constraint in place). Nothing references email_log, so the
+  // drop/rename is safe with foreign keys enabled.
+  `
+  CREATE TABLE broadcasts (
+    id INTEGER PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    flyer TEXT NOT NULL DEFAULT '{}',
+    audience TEXT NOT NULL DEFAULT '{}',
+    web_version INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sending', 'sent')),
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at TEXT
+  );
+
+  CREATE TABLE email_log_new (
+    id INTEGER PRIMARY KEY,
+    event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+    invite_id INTEGER REFERENCES invites(id) ON DELETE SET NULL,
+    broadcast_id INTEGER REFERENCES broadcasts(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('invitation', 'follow_up', 'nudge', 'cancellation', 'test', 'broadcast')),
+    to_name TEXT,
+    to_email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    html TEXT NOT NULL,
+    body_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'queued'
+      CHECK (status IN ('queued', 'sending', 'sent', 'simulated', 'failed')),
+    error TEXT,
+    provider_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at TEXT
+  );
+  INSERT INTO email_log_new
+    (id, event_id, invite_id, kind, to_name, to_email, subject, html, body_text, status, error, provider_id, created_at, sent_at)
+    SELECT id, event_id, invite_id, kind, to_name, to_email, subject, html, body_text, status, error, provider_id, created_at, sent_at
+    FROM email_log;
+  DROP TABLE email_log;
+  ALTER TABLE email_log_new RENAME TO email_log;
+  CREATE INDEX idx_email_log_status ON email_log(status);
+  CREATE INDEX idx_email_log_event ON email_log(event_id);
+  CREATE INDEX idx_email_log_broadcast ON email_log(broadcast_id);
+  `,
 ];

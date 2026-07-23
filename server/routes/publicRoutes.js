@@ -13,7 +13,8 @@ import { getOrg, orgDb, uploadsDir, insertId } from '../lib/db.js';
 import { resolveSession } from '../lib/auth.js';
 import { esc, textToHtml, publicPage } from '../lib/html.js';
 import { renderFlyer, flyerColors, mixWithWhite } from '../lib/flyer.js';
-import { parseFlyer, publicUrl } from '../lib/sending.js';
+import { parseFlyer, publicUrl, verifyContactToken } from '../lib/sending.js';
+import { buildBroadcastTagContext, renderTags } from '../lib/mergeTags.js';
 import { formatWhen, formatDate, firstName } from '../lib/format.js';
 import { buildIcs, googleCalendarUrl } from '../lib/ics.js';
 import { randomToken } from '../lib/tokens.js';
@@ -485,6 +486,78 @@ publicRouter.post('/u/:token', (req, res) => {
     db.prepare(`INSERT INTO contacts (name, email, unsubscribed_at) VALUES (?, ?, datetime('now'))`)
       .run(invite.guest_name || email, email);
   }
+  res.send(publicPage({
+    title: 'Unsubscribed',
+    bodyHtml: `<div class="pub-card"><h2>You're unsubscribed</h2>
+      <p class="pub-muted">${esc(email)} will not receive further emails from ${esc(req.pub.org.name)}.</p></div>`,
+    footerHtml: orgFooter(req),
+  }));
+});
+
+// --- broadcast web version -------------------------------------------------
+
+function broadcastBySlug(db, slug) {
+  if (!/^[a-z0-9]{4,20}$/.test(String(slug))) return null;
+  return db.prepare('SELECT * FROM broadcasts WHERE slug = ?').get(slug) || null;
+}
+
+publicRouter.get('/b/:slug', (req, res) => {
+  const db = req.pub.db;
+  const b = broadcastBySlug(db, req.params.slug);
+  if (!b) return notFoundPage(res);
+
+  // Drafts are visible only to a signed-in member of the same org (preview);
+  // sent broadcasts require the web version to be enabled.
+  if (b.status === 'draft') {
+    const session = resolveSession(req);
+    if (!session || session.org.slug !== req.pub.org.slug) return notFoundPage(res);
+  } else if (!b.web_version) {
+    return notFoundPage(res);
+  }
+
+  const flyer = parseFlyer(b);
+  const imageUrl = flyer.imageToken ? publicUrl(req.pub.org.slug, `/files/${flyer.imageToken}`) : '';
+  const flyerHtml = renderFlyer({ event: { title: b.title }, flyer, imageUrl, hideEventMeta: true });
+  const ctx = buildBroadcastTagContext({ org: req.pub.org, recipientName: '' });
+  const bodyText = renderTags(b.body || '', ctx);
+
+  res.send(publicPage({
+    title: b.title,
+    pageBg: mixWithWhite(flyerColors(flyer).ink, 0.07),
+    bodyHtml: `
+      ${b.status === 'draft' ? statusBanner('Draft preview — this broadcast has not been sent yet.', 'warn') : ''}
+      ${flyerHtml}
+      ${bodyText.trim() ? `<div class="pub-card">${textToHtml(bodyText)}</div>` : ''}
+    `,
+    footerHtml: orgFooter(req),
+  }));
+});
+
+// Broadcast unsubscribe (stateless signed contact token; see sending.js).
+publicRouter.get('/bu/:token', (req, res) => {
+  const db = req.pub.db;
+  const contactId = verifyContactToken(req.params.token);
+  const contact = contactId ? db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId) : null;
+  if (!contact || !contact.email) return notFoundPage(res);
+  res.send(publicPage({
+    title: 'Unsubscribe',
+    bodyHtml: `<div class="pub-card"><h2>Stop receiving emails?</h2>
+      <p class="pub-muted">${esc(contact.email)} will no longer receive announcements or invitations from ${esc(req.pub.org.name)}.</p>
+      <form method="post" action="/o/${esc(req.pub.org.slug)}/bu/${esc(req.params.token)}" style="margin-top:14px;">
+        <button class="pub-btn pub-btn-plain" type="submit">Unsubscribe</button>
+      </form></div>`,
+    footerHtml: orgFooter(req),
+  }));
+});
+
+publicRouter.post('/bu/:token', (req, res) => {
+  const db = req.pub.db;
+  if (!take(`unsub:${req.ip}`, 30, 60 * 60 * 1000)) return res.status(429).send('Too many requests');
+  const contactId = verifyContactToken(req.params.token);
+  const contact = contactId ? db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId) : null;
+  const email = (contact?.email || '').toLowerCase();
+  if (!email) return notFoundPage(res);
+  db.prepare(`UPDATE contacts SET unsubscribed_at = datetime('now') WHERE email = ?`).run(email);
   res.send(publicPage({
     title: 'Unsubscribed',
     bodyHtml: `<div class="pub-card"><h2>You're unsubscribed</h2>

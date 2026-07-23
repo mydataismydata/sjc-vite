@@ -27,5 +27,6 @@ flyerRouter.post('/flyer/preview', wrap(async (req, res) => {
   const imageUrl = flyer.imageToken && /^[A-Za-z0-9]{6,64}$/.test(flyer.imageToken)
     ? publicUrl(req.org.slug, `/files/${flyer.imageToken}`)
     : '';
-  res.type('html').send(renderFlyerDocument({ event, flyer, imageUrl }));
+  const hideEventMeta = req.body.mode === 'broadcast';
+  res.type('html').send(renderFlyerDocument({ event, flyer, imageUrl, hideEventMeta }));
 }));

@@ -44,6 +44,23 @@ export function buildTagContext({ org, event, inviteName, links = {} }) {
   };
 }
 
+// Broadcasts have no event/RSVP context, so only a handful of tags apply.
+export const BROADCAST_TAG_DEFS = [
+  { tag: 'first_name', label: 'Recipient first name', sample: 'Alex' },
+  { tag: 'recipient_name', label: 'Recipient full name', sample: 'Alex Rivera' },
+  { tag: 'org_name', label: 'Organization name', sample: 'Community Club' },
+];
+
+export function buildBroadcastTagContext({ org, recipientName, links = {} }) {
+  const name = String(recipientName || '').trim();
+  return {
+    first_name: firstName(name) || 'there',
+    recipient_name: name || 'there',
+    org_name: org?.name || '',
+    view_link: links.view || '',
+  };
+}
+
 // Replace {{ tag }} occurrences in plain text. Unknown tags become ''.
 export function renderTags(text, ctx) {
   return String(text || '').replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, tag) => {

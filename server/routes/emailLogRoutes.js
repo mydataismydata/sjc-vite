@@ -5,15 +5,21 @@ export const emailLogRouter = Router();
 
 emailLogRouter.get('/emails', wrap(async (req, res) => {
   const eventId = req.query.event_id ? v.int(req.query.event_id, { label: 'event_id', min: 1 }) : null;
+  const broadcastId = req.query.broadcast_id ? v.int(req.query.broadcast_id, { label: 'broadcast_id', min: 1 }) : null;
   const status = v.optStr(req.query.status, { max: 20 });
   const limit = v.int(req.query.limit, { label: 'limit', min: 1, max: 500, required: false, fallback: 200 });
 
   let sql = `
-    SELECT l.id, l.event_id, l.invite_id, l.kind, l.to_name, l.to_email, l.subject,
-           l.status, l.error, l.provider_id, l.created_at, l.sent_at, e.title AS event_title
-    FROM email_log l LEFT JOIN events e ON e.id = l.event_id WHERE 1=1`;
+    SELECT l.id, l.event_id, l.invite_id, l.broadcast_id, l.kind, l.to_name, l.to_email, l.subject,
+           l.status, l.error, l.provider_id, l.created_at, l.sent_at,
+           e.title AS event_title, b.title AS broadcast_title
+    FROM email_log l
+    LEFT JOIN events e ON e.id = l.event_id
+    LEFT JOIN broadcasts b ON b.id = l.broadcast_id
+    WHERE 1=1`;
   const params = [];
   if (eventId) { sql += ' AND l.event_id = ?'; params.push(eventId); }
+  if (broadcastId) { sql += ' AND l.broadcast_id = ?'; params.push(broadcastId); }
   if (status) { sql += ' AND l.status = ?'; params.push(status); }
   sql += ' ORDER BY l.id DESC LIMIT ?';
   params.push(limit);

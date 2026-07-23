@@ -431,6 +431,87 @@ let guests = [];
   check('cannot demote self', selfDemote.status === 400);
 }
 
+// --- broadcasts (standalone email blast, no event/RSVP) --------------------
+{
+  const cr = await A.api('POST', '/api/broadcasts', {
+    title: 'Endorsement Announcement',
+    subject: 'Our endorsements for {{org_name}}',
+    body: 'Hi {{first_name}},\n\nHere are our picks for the primary.\n\n— {{org_name}}',
+    web_version: true,
+    flyer: { style: 'modern', paletteId: 'slate', eyebrow: 'Announcement' },
+  });
+  const bId = cr.data?.broadcast?.id;
+  const bSlug = cr.data?.broadcast?.slug;
+  check('create broadcast', cr.status === 201 && bId > 0 && /^[a-z0-9]{10}$/.test(bSlug || ''));
+  check('broadcast starts as draft', cr.data?.broadcast?.status === 'draft');
+
+  // Draft web version: hidden from the public, visible to a signed-in member.
+  const draftPub = await fetch(`${BASE}/o/alpha/b/${bSlug}`);
+  check('draft broadcast web version hidden from public', draftPub.status === 404);
+  const draftPrev = await A.raw('GET', `/o/alpha/b/${bSlug}`);
+  check('draft broadcast preview visible to org member', draftPrev.status === 200);
+
+  // Preview email has the masthead but no RSVP buttons.
+  const prev = await A.api('POST', `/api/broadcasts/${bId}/email-preview`, {});
+  const prevHtml = String(prev.data?.html || '');
+  check('broadcast preview renders without RSVP buttons',
+    prev.status === 200 && prevHtml.includes('Endorsement Announcement') && !prevHtml.includes('/accept'));
+  const test = await A.api('POST', `/api/broadcasts/${bId}/test-email`, {});
+  check('broadcast test email simulated', test.data?.status === 'simulated', JSON.stringify(test.data));
+
+  // Send to every contact: 4 have email, 1 has none, 1 emailed one is unsubscribed.
+  const send = await A.api('POST', `/api/broadcasts/${bId}/send`, { contact_ids: contactIds });
+  check('broadcast send queues 3 (skips no-email + unsubscribed)',
+    send.status === 200 && send.data?.queued === 3
+    && send.data?.skipped?.no_email === 1 && send.data?.skipped?.unsubscribed === 1,
+    JSON.stringify(send.data));
+  check('broadcast marked sent', send.data?.broadcast?.status === 'sent');
+
+  await waitFor(async () => {
+    const r = await A.api('GET', `/api/emails?broadcast_id=${bId}&status=simulated`);
+    return (r.data?.emails || []).filter((e) => e.kind === 'broadcast').length === 3;
+  }, 'queue processes 3 broadcast emails (simulated)');
+
+  // Stats count broadcast recipients only (the test send is excluded).
+  const detail = await A.api('GET', `/api/broadcasts/${bId}`);
+  check('broadcast stats: 3 recipients, 3 sent',
+    detail.data?.broadcast?.stats?.recipients === 3 && detail.data?.broadcast?.stats?.sent === 3,
+    JSON.stringify(detail.data?.broadcast?.stats));
+
+  // A sent broadcast's web version is public and shows the flyer title.
+  const pub = await fetch(`${BASE}/o/alpha/b/${bSlug}`);
+  const pubHtml = await pub.text();
+  check('sent broadcast web version is public', pub.status === 200 && pubHtml.includes('Endorsement Announcement'));
+
+  // The email carries a working unsubscribe (/bu/) and view-online (/b/) link,
+  // and never an RSVP link.
+  const one = (await A.api('GET', `/api/emails?broadcast_id=${bId}`)).data.emails.find((e) => e.kind === 'broadcast');
+  const bhtml = (await A.api('GET', `/api/emails/${one.id}`)).data?.email?.html || '';
+  check('broadcast email has unsubscribe + view-online, no RSVP',
+    bhtml.includes('/bu/') && bhtml.includes('/b/') && !bhtml.includes('/accept'));
+  const m = bhtml.match(/\/o\/alpha\/bu\/([^"'<>\s]+)/);
+  check('broadcast unsubscribe link present', Boolean(m));
+  if (m) {
+    const unsubGet = await fetch(`${BASE}/o/alpha/bu/${m[1]}`);
+    check('broadcast unsubscribe page renders', unsubGet.status === 200);
+    const unsubPost = await fetch(`${BASE}/o/alpha/bu/${m[1]}`, { method: 'POST', redirect: 'manual' });
+    check('broadcast unsubscribe works', unsubPost.status === 200);
+  }
+
+  // A web_version=false broadcast has no public page.
+  const noWeb = await A.api('POST', '/api/broadcasts', { title: 'Email Only Blast', web_version: false });
+  await A.api('POST', `/api/broadcasts/${noWeb.data.broadcast.id}/send`, { group_ids: [groupId] });
+  const noWebPage = await fetch(`${BASE}/o/alpha/b/${noWeb.data.broadcast.slug}`);
+  check('web_version=false broadcast page is 404', noWebPage.status === 404);
+
+  // CSV export + cross-org isolation.
+  const csv = await A.raw('GET', '/api/export/broadcasts.csv');
+  const ctext = await csv.text();
+  check('broadcasts CSV export', csv.status === 200 && ctext.includes('Endorsement Announcement'));
+  const bIso = await B.api('GET', `/api/broadcasts/${bId}`);
+  check('ISOLATION: B cannot fetch A\'s broadcast', bIso.status === 404);
+}
+
 // ---------------------------------------------------------------------------
 console.log('');
 if (failures.length === 0) {

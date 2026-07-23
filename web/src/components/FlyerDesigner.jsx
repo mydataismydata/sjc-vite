@@ -7,7 +7,7 @@ let cachedPresets = null;
 // The flyer designer: pick a style, adjust palette / fonts / sizes, add short
 // text and an optional featured image. The preview iframe is rendered by the
 // server with the exact same code that renders the public landing page.
-export default function FlyerDesigner({ eventBasics, flyer, onChange }) {
+export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'event' }) {
   const [presets, setPresets] = useState(cachedPresets);
   const [srcdoc, setSrcdoc] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -29,13 +29,13 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange }) {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-requested-with': 'sjc-vite' },
           credentials: 'same-origin',
-          body: JSON.stringify({ event: eventBasics, flyer }),
+          body: JSON.stringify({ event: eventBasics, flyer, mode }),
         });
         if (res.ok) setSrcdoc(await res.text());
       } catch { /* preview is best-effort */ }
     }, 350);
     return () => clearTimeout(timer.current);
-  }, [JSON.stringify(eventBasics), JSON.stringify(flyer)]);
+  }, [JSON.stringify(eventBasics), JSON.stringify(flyer), mode]);
 
   function set(patch) {
     onChange({ ...flyer, ...patch });
@@ -139,12 +139,14 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange }) {
             onChange={(e) => set({ note: e.target.value })} />
         </Field>
 
-        <label className="checkbox">
-          <input type="checkbox" checked={flyer.showHost}
-            onChange={(e) => set({ showHost: e.target.checked })} />
-          <span><span className="cb-label">Show host line</span>
-            <div className="cb-sub">Displays “Hosted by {eventBasics.host_name || '…'}” on the flyer.</div></span>
-        </label>
+        {mode === 'event' ? (
+          <label className="checkbox">
+            <input type="checkbox" checked={flyer.showHost}
+              onChange={(e) => set({ showHost: e.target.checked })} />
+            <span><span className="cb-label">Show host line</span>
+              <div className="cb-sub">Displays “Hosted by {eventBasics.host_name || '…'}” on the flyer.</div></span>
+          </label>
+        ) : null}
 
         <Field label="Featured image" hint="Optional. JPEG/PNG/GIF/WebP up to 5 MB — each style frames it differently.">
           <div className="row">
@@ -166,7 +168,9 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange }) {
       <div>
         <iframe className="preview-frame" title="Flyer preview" srcDoc={srcdoc} />
         <p className="small muted" style={{ textAlign: 'center', marginTop: 6 }}>
-          Live preview — exactly what guests see on the event page.
+          {mode === 'broadcast'
+            ? 'Live preview — the masthead at the top of the email and web version.'
+            : 'Live preview — exactly what guests see on the event page.'}
         </p>
       </div>
     </div>

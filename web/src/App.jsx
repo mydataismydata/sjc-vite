@@ -7,6 +7,9 @@ import Dashboard from './pages/Dashboard.jsx';
 import EventsList from './pages/EventsList.jsx';
 import EventDetail from './pages/EventDetail.jsx';
 import EventWizard from './pages/EventWizard.jsx';
+import BroadcastsList from './pages/BroadcastsList.jsx';
+import BroadcastDetail from './pages/BroadcastDetail.jsx';
+import BroadcastWizard from './pages/BroadcastWizard.jsx';
 import Contacts from './pages/Contacts.jsx';
 import Groups from './pages/Groups.jsx';
 import Venues from './pages/Venues.jsx';
@@ -21,6 +24,7 @@ export function useAuth() {
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '⌂', end: true },
   { to: '/events', label: 'Events', icon: '🎟' },
+  { to: '/broadcasts', label: 'Broadcasts', icon: '📣' },
   { to: '/contacts', label: 'Contacts', icon: '👤' },
   { to: '/groups', label: 'Groups', icon: '👥' },
   { to: '/venues', label: 'Venues', icon: '📍' },
@@ -103,6 +107,10 @@ export default function App() {
             <Route path="/events/new" element={<EventWizard />} />
             <Route path="/events/:id" element={<EventDetail />} />
             <Route path="/events/:id/edit" element={<EventWizard />} />
+            <Route path="/broadcasts" element={<BroadcastsList />} />
+            <Route path="/broadcasts/new" element={<BroadcastWizard />} />
+            <Route path="/broadcasts/:id" element={<BroadcastDetail />} />
+            <Route path="/broadcasts/:id/edit" element={<BroadcastWizard />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/venues" element={<Venues />} />

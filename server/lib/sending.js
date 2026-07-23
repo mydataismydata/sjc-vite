@@ -2,10 +2,11 @@
 // queue": link building, per-recipient rendering, dedupe/skip rules.
 import { config } from './env.js';
 import { insertId } from './db.js';
+import { hmacHex, safeEqual } from './tokens.js';
 import { normalizeFlyer, flyerColors } from './flyer.js';
-import { buildTagContext, renderTags } from './mergeTags.js';
+import { buildTagContext, buildBroadcastTagContext, renderTags } from './mergeTags.js';
 import {
-  renderInvitationEmail, renderMessageEmail,
+  renderInvitationEmail, renderMessageEmail, renderBroadcastEmail,
   DEFAULT_INVITE_BODY, DEFAULT_NUDGE_BODY, DEFAULT_FOLLOW_UP_BODY, DEFAULT_CANCEL_BODY,
 } from './emailTemplates.js';
 
@@ -133,4 +134,115 @@ export function logTestEmail(db, { event, toEmail, subject, html, text, status, 
      VALUES (?, NULL, 'test', '', ?, ?, ?, ?, ?, ?, datetime('now'))`
   ).run(event.id, toEmail, subject, html, text, status, error || null);
   return insertId(info);
+}
+
+// --- broadcasts (email blasts not tied to an event) ------------------------
+
+// Stateless unsubscribe token for broadcast recipients: "<contactId>.<hmac>".
+// Broadcasts have no per-recipient invite row, so the link is derived from the
+// contact id and verified with the server secret — no extra storage needed.
+export function signContactToken(contactId) {
+  const id = String(contactId);
+  return `${id}.${hmacHex(config.sessionSecret, `bunsub:${id}`).slice(0, 24)}`;
+}
+
+export function verifyContactToken(token) {
+  const parts = String(token).split('.');
+  if (parts.length !== 2) return null;
+  const [id, sig] = parts;
+  if (!/^\d+$/.test(id)) return null;
+  if (!safeEqual(sig, hmacHex(config.sessionSecret, `bunsub:${id}`).slice(0, 24))) return null;
+  return Number(id);
+}
+
+export function broadcastViewUrl(orgSlug, broadcast) {
+  return publicUrl(orgSlug, `/b/${broadcast.slug}`);
+}
+
+export function broadcastUnsubUrl(orgSlug, contactId) {
+  return contactId ? publicUrl(orgSlug, `/bu/${signContactToken(contactId)}`) : '';
+}
+
+// Turn a { contact_ids, group_ids, new_contacts } selection into a deduped
+// list of { contact_id, name, email }. New people are saved to the contact
+// list (when saveNew), mirroring the event guest flow. Meant to run inside a
+// transaction when saving is involved.
+export function resolveRecipients(db, { contactIds = [], groupIds = [], newContacts = [], saveNew = true }) {
+  const ids = new Set(contactIds.map(Number));
+  for (const gid of groupIds) {
+    for (const m of db.prepare('SELECT contact_id FROM group_members WHERE group_id = ?').all(gid)) {
+      ids.add(Number(m.contact_id));
+    }
+  }
+
+  const out = [];
+  const seenEmail = new Set();
+  const push = (contactId, name, email) => {
+    const e = (email || '').toLowerCase();
+    if (e && seenEmail.has(e)) return;
+    if (e) seenEmail.add(e);
+    out.push({ contact_id: contactId ?? null, name: name || '', email: e });
+  };
+
+  const getContact = db.prepare('SELECT * FROM contacts WHERE id = ?');
+  for (const cid of ids) {
+    const c = getContact.get(cid);
+    if (c) push(c.id, c.name, c.email || '');
+  }
+
+  const contactByEmail = db.prepare('SELECT * FROM contacts WHERE email = ?');
+  const insertContact = db.prepare('INSERT INTO contacts (name, email, phone) VALUES (?, ?, ?)');
+  for (const raw of Array.isArray(newContacts) ? newContacts.slice(0, 2000) : []) {
+    const name = String(raw?.name || '').trim().slice(0, 200);
+    if (!name) continue;
+    const email = String(raw?.email || '').trim().toLowerCase().slice(0, 254);
+    const phone = String(raw?.phone || '').trim().slice(0, 50);
+    let contactId = null;
+    if (email) {
+      const existing = contactByEmail.get(email);
+      if (existing) contactId = existing.id;
+      else if (saveNew) contactId = insertId(insertContact.run(name, email, phone || null));
+    } else if (saveNew) {
+      contactId = insertId(insertContact.run(name, null, phone || null));
+    }
+    push(contactId, name, email);
+  }
+  return out;
+}
+
+export function renderBroadcastEmailFor({ org, broadcast, recipient, subjectTemplate, bodyTemplate, viewUrl, unsubUrl }) {
+  const name = recipient?.name || '';
+  const email = (recipient?.email || '').toLowerCase();
+  const ctx = buildBroadcastTagContext({ org, recipientName: name, links: { view: viewUrl || '' } });
+  const subject = renderTags(subjectTemplate, ctx).trim() || broadcast.title || org.name;
+  const bodyText = renderTags(bodyTemplate, ctx);
+  const flyer = parseFlyer(broadcast);
+  const accent = flyerColors(flyer).accent;
+  const imageUrl = flyer.imageToken ? publicUrl(org.slug, `/files/${flyer.imageToken}`) : '';
+  const rendered = renderBroadcastEmail({
+    org, accent, bannerLabel: flyer.eyebrow || '', title: broadcast.title,
+    toEmail: email, bodyText, imageUrl, viewUrl: viewUrl || '', unsubUrl: unsubUrl || '',
+  });
+  return { subject, html: rendered.html, text: rendered.text, toName: name, toEmail: email };
+}
+
+// Queue one email per recipient, applying the same skip rules as events.
+export function queueBroadcastEmails(db, { org, broadcast, recipients, subjectTemplate, bodyTemplate }) {
+  let queued = 0;
+  const skipped = { no_email: 0, unsubscribed: 0 };
+  const viewUrl = broadcast.web_version ? broadcastViewUrl(org.slug, broadcast) : '';
+  const insert = db.prepare(
+    `INSERT INTO email_log (broadcast_id, kind, to_name, to_email, subject, html, body_text)
+     VALUES (?, 'broadcast', ?, ?, ?, ?, ?)`
+  );
+  for (const r of recipients) {
+    const email = (r.email || '').toLowerCase();
+    if (!email) { skipped.no_email++; continue; }
+    if (isUnsubscribed(db, email)) { skipped.unsubscribed++; continue; }
+    const unsubUrl = broadcastUnsubUrl(org.slug, r.contact_id);
+    const msg = renderBroadcastEmailFor({ org, broadcast, recipient: r, subjectTemplate, bodyTemplate, viewUrl, unsubUrl });
+    insert.run(broadcast.id, msg.toName || '', email, msg.subject, msg.html, msg.text);
+    queued++;
+  }
+  return { queued, skipped };
 }

@@ -109,6 +109,39 @@ leave and resume any time (it stays a draft until you send or publish).
    sending**. Sending publishes the event page and queues one personalized
    email per guest.
 
+## Broadcasts (email blasts, no event)
+
+Sometimes you need to email your people about something that isn't an event —
+an endorsement, a primary reminder, a newsletter. **Broadcasts** do exactly
+that: the same flyer designer and templates as events, but no RSVP, no guest
+list, no date/venue.
+
+**Broadcasts → New broadcast** opens a slimmed four-step wizard:
+
+1. **Details** — a title (shown at the top of the email and web version), the
+   email subject (defaults to the title), and whether to publish a **web
+   version** (see below).
+2. **Design & message** — the flyer designer, here producing a *masthead* (the
+   styled title block at the top of the email — no date/venue lines). Then the
+   message body, with a template picker and the `{{first_name}}`,
+   `{{recipient_name}}`, and `{{org_name}}` placeholders.
+3. **Recipients** — pick groups and individual contacts, or add new people
+   inline (they're saved to your contacts, just like the event wizard).
+4. **Review & send** — send yourself a test first, then send. One email is
+   queued per recipient who has an address and hasn't unsubscribed.
+
+**Web version.** With it on, the email includes a “View this email online” link
+to an unguessable page that renders the masthead and your message — handy when
+a mail client clips a long email. Turn it off for an email-only broadcast. It's
+a per-broadcast toggle.
+
+**Unsubscribe still applies.** Every broadcast email has an unsubscribe link,
+and anyone who has unsubscribed (from a broadcast *or* an event) is skipped and
+counted in the send summary. The broadcast page shows delivery counts
+(recipients, sent, queued, failed) and a full email log with one-click retry,
+exactly like an event's email log. Broadcasts also export to CSV
+(Settings → Export, or the button on the Broadcasts page).
+
 ## The guest experience
 
 - The **invitation email** shows the event details and two unmistakable

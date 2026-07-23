@@ -306,6 +306,7 @@ export default function Settings() {
           <a className="btn" href="/api/export/groups.csv">Groups CSV</a>
           <a className="btn" href="/api/export/venues.csv">Venues CSV</a>
           <a className="btn" href="/api/export/events.csv">Events CSV</a>
+          <a className="btn" href="/api/export/broadcasts.csv">Broadcasts CSV</a>
           <a className="btn" href="/api/export/emails.csv">Email log CSV</a>
           <a className="btn" href="/api/export/backup.json">Full JSON backup</a>
         </div>

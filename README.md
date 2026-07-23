@@ -31,6 +31,19 @@ organizations from one installation**, with hard isolation between them.
   cancellation notices, test sends to yourself
 - Duplicate past events; manual RSVP entry for phone responses
 
+**Broadcasts**
+- Standalone email blasts that aren't tied to an event — endorsements, primary
+  reminders, newsletters — with the same flyer designer and templates, minus
+  RSVP and guest tracking
+- A slimmed wizard (details → design & message → recipients → review & send);
+  send to groups and individual contacts, add new people inline
+- Optional unguessable **web version** ("view this email online") per broadcast,
+  rendered from the flyer masthead; per-send toggle
+- Every broadcast email carries a one-click unsubscribe; unsubscribed contacts
+  are skipped and shared with the event unsubscribe list
+- Delivery report (recipients, sent, queued, failed) and a full email log with
+  one-click retry
+
 **People**
 - Contact list with names, emails, phone numbers, and notes
 - CSV import (flexible headers, safe to re-import) and CSV export
@@ -168,7 +181,9 @@ Public guest URLs are namespaced per organization and token-based:
 /o/<org>/i/<invite-token>      personal RSVP page
 /o/<org>/i/<token>/accept      one-click accept (from email button)
 /o/<org>/i/<token>/decline     one-click decline
-/o/<org>/u/<token>             unsubscribe
+/o/<org>/u/<token>             unsubscribe (event invitation)
+/o/<org>/b/<slug>              broadcast web version ("view in browser")
+/o/<org>/bu/<token>            unsubscribe (broadcast)
 ```
 
 ## Security notes

@@ -91,9 +91,10 @@ function header({ accent, orgName, bannerLabel, title, whenLine, imageUrl }) {
   </td></tr>` : ''}`;
 }
 
-function footer({ orgName, toEmail, unsubUrl, note }) {
+function footer({ orgName, toEmail, unsubUrl, note, viewUrl }) {
   return [
     note ? esc(note) : '',
+    viewUrl ? `<a href="${esc(viewUrl)}" style="color:#9ca3af;">View this email online</a>` : '',
     `This email was sent to ${esc(toEmail)} by ${esc(orgName)}.`,
     unsubUrl ? `<a href="${esc(unsubUrl)}" style="color:#9ca3af;">Stop receiving emails from ${esc(orgName)}</a>` : '',
   ].filter(Boolean).join('<br>');
@@ -188,6 +189,42 @@ export function renderMessageEmail({ kind, org, event, accent, toEmail, bodyText
   ].filter((l) => l !== null).join('\n');
   return { html, text };
 }
+
+// Standalone broadcast (email blast not tied to an event): the flyer accent
+// and optional featured image in the header, the message body, then footer
+// with the "view online" and unsubscribe links. No event details, no RSVP.
+export function renderBroadcastEmail({ org, accent, bannerLabel, title, toEmail, bodyText, imageUrl, viewUrl, unsubUrl }) {
+  const content = textToHtml(bodyText)
+    ? `<div style="font-size:15.5px; line-height:1.65; color:#374151; padding-top:16px;">${textToHtml(bodyText)}</div>`
+    : '';
+  const html = shell({
+    accent,
+    preheader: title || bannerLabel || org.name,
+    headerHtml: header({
+      accent, orgName: org.name, bannerLabel: bannerLabel || org.name,
+      title: title || org.name, whenLine: '', imageUrl,
+    }),
+    contentHtml: content,
+    footerHtml: footer({ orgName: org.name, toEmail, unsubUrl, viewUrl }),
+  });
+  const text = [
+    title || bannerLabel || org.name,
+    '',
+    bodyText,
+    '',
+    viewUrl ? `View online: ${viewUrl}` : '',
+    `Sent to ${toEmail} by ${org.name}.`,
+    unsubUrl ? `Unsubscribe: ${unsubUrl}` : '',
+  ].filter(Boolean).join('\n');
+  return { html, text };
+}
+
+export const DEFAULT_BROADCAST_BODY =
+`Hi {{first_name}},
+
+Write your message here.
+
+— {{org_name}}`;
 
 export const DEFAULT_INVITE_BODY =
 `Hi {{first_name}},

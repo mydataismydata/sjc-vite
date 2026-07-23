@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { wrap, v, ApiError } from '../lib/validate.js';
-import { eventStats, monthEmailCount } from '../lib/stats.js';
+import { eventStats, broadcastStats, monthEmailCount } from '../lib/stats.js';
 import { getQuota, orgApiKey } from '../lib/email.js';
 import { toCsv } from '../lib/csv.js';
 import { getSetting } from '../lib/db.js';
@@ -125,6 +125,23 @@ reportRouter.get('/export/events.csv', wrap(async (req, res) => {
   ]));
 }));
 
+reportRouter.get('/export/broadcasts.csv', wrap(async (req, res) => {
+  const rows = req.db.prepare('SELECT * FROM broadcasts ORDER BY COALESCE(sent_at, updated_at) DESC, id DESC').all()
+    .map((b) => ({ ...b, ...broadcastStats(req.db, b.id), web_url: publicUrl(req.org.slug, `/b/${b.slug}`) }));
+  sendCsv(res, 'broadcasts.csv', toCsv(rows, [
+    { key: 'title', label: 'title' },
+    { key: 'status', label: 'status' },
+    { key: 'subject', label: 'subject' },
+    { key: 'recipients', label: 'recipients' },
+    { key: 'sent', label: 'sent' },
+    { key: 'failed', label: 'failed' },
+    { label: 'web_version', get: (r) => (r.web_version ? 'yes' : '') },
+    { key: 'web_url', label: 'web_url' },
+    { key: 'sent_at', label: 'sent_at' },
+    { key: 'created_at', label: 'created_at' },
+  ]));
+}));
+
 reportRouter.get('/export/events/:id/guests.csv', wrap(async (req, res) => {
   const id = v.int(req.params.id, { label: 'event id', min: 1 });
   const event = req.db.prepare('SELECT * FROM events WHERE id = ?').get(id);
@@ -187,7 +204,8 @@ reportRouter.get('/export/backup.json', wrap(async (req, res) => {
     templates: all('SELECT * FROM templates'),
     events: all('SELECT * FROM events'),
     invites: all('SELECT * FROM invites'),
-    email_log: all(`SELECT id, event_id, invite_id, kind, to_name, to_email, subject, status,
+    broadcasts: all('SELECT * FROM broadcasts'),
+    email_log: all(`SELECT id, event_id, invite_id, broadcast_id, kind, to_name, to_email, subject, status,
       error, provider_id, created_at, sent_at FROM email_log`),
     uploads: all('SELECT * FROM uploads'),
   };

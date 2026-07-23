@@ -4,7 +4,7 @@
 import { config } from './env.js';
 import { listOrgs, orgDb, getSetting } from './db.js';
 import { sendEmail, orgApiKey, orgSender } from './email.js';
-import { buildLinks } from './sending.js';
+import { buildLinks, publicUrl, signContactToken } from './sending.js';
 
 const TICK_MS = 2000;
 let timer = null;
@@ -25,6 +25,12 @@ async function processOne(db, org, row) {
     if (invite && event) {
       const links = buildLinks(org.slug, event, invite);
       headers.push({ header: 'List-Unsubscribe', value: `<${links.unsub}>` });
+    }
+  } else if (row.broadcast_id && row.kind === 'broadcast') {
+    const contact = db.prepare('SELECT id FROM contacts WHERE email = ?').get((row.to_email || '').toLowerCase());
+    if (contact) {
+      const unsub = publicUrl(org.slug, `/bu/${signContactToken(contact.id)}`);
+      headers.push({ header: 'List-Unsubscribe', value: `<${unsub}>` });
     }
   }
 

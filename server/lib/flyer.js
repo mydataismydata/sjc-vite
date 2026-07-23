@@ -146,7 +146,7 @@ function px(n) {
   return `${Math.round(n)}px`;
 }
 
-function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine }) {
+function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const img = imageUrl
@@ -156,6 +156,13 @@ function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine }
        </div>`
     : '';
   const divider = `<div style="color:${c.accent}; font-size:15px; letter-spacing:10px; margin:20px 0 4px;">&#10022;&nbsp;&#10022;&nbsp;&#10022;</div>`;
+  const meta = hideEventMeta ? (flyer.note ? divider : '') : `
+      ${divider}
+      <div style="font-size:${px(18 * scale)}; font-weight:700; margin-top:10px;">${esc(w.date)}</div>
+      ${w.time ? `<div style="font-size:${px(15.5 * scale)}; margin-top:4px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
+      ${event.venue_name ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; font-weight:600;">${esc(event.venue_name)}</div>` : ''}
+      ${event.venue_address ? `<div style="font-size:${px(14 * scale)}; margin-top:2px; color:${tint(c.ink, 0.8)};">${esc(event.venue_address)}</div>` : ''}
+      ${hostLine ? `<div style="margin-top:22px; font-size:${px(13 * scale)}; text-transform:uppercase; letter-spacing:0.18em; color:${c.accent};">${esc(hostLine)}</div>` : ''}`;
   return `
   <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body}; padding:18px;">
     <div style="border:1px solid ${tint(c.accent, 0.75)}; outline:1px solid ${tint(c.accent, 0.35)};
@@ -164,18 +171,13 @@ function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine }
       <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.12; font-weight:600;">${esc(event.title || 'Untitled event')}</div>
       ${flyer.tagline ? `<div style="font-style:italic; font-size:${px(17 * scale)}; margin-top:14px; color:${tint(c.ink, 0.82)};">${esc(flyer.tagline)}</div>` : ''}
       ${img}
-      ${divider}
-      <div style="font-size:${px(18 * scale)}; font-weight:700; margin-top:10px;">${esc(w.date)}</div>
-      ${w.time ? `<div style="font-size:${px(15.5 * scale)}; margin-top:4px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
-      ${event.venue_name ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; font-weight:600;">${esc(event.venue_name)}</div>` : ''}
-      ${event.venue_address ? `<div style="font-size:${px(14 * scale)}; margin-top:2px; color:${tint(c.ink, 0.8)};">${esc(event.venue_address)}</div>` : ''}
-      ${hostLine ? `<div style="margin-top:22px; font-size:${px(13 * scale)}; text-transform:uppercase; letter-spacing:0.18em; color:${c.accent};">${esc(hostLine)}</div>` : ''}
+      ${meta}
       ${flyer.note ? `<div style="margin-top:16px; font-style:italic; font-size:${px(13.5 * scale)}; color:${tint(c.ink, 0.75)};">${esc(flyer.note)}</div>` : ''}
     </div>
   </div>`;
 }
 
-function renderModern({ event, flyer, colors, font, scale, imageUrl, hostLine }) {
+function renderModern({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const onAccent = contrastOn(c.accent);
@@ -188,6 +190,12 @@ function renderModern({ event, flyer, colors, font, scale, imageUrl, hostLine })
       <div style="font-size:${px(17 * scale)}; font-weight:700; margin-top:2px;">${esc(main)}</div>
       ${sub ? `<div style="font-size:${px(14 * scale)}; color:${tint(c.ink, 0.8)};">${esc(sub)}</div>` : ''}
     </div>`;
+  const meta = hideEventMeta ? '' : `
+      <div style="margin-top:10px;">
+        ${row('When', w.date, [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
+        ${event.venue_name || event.venue_address ? row('Where', event.venue_name || '', event.venue_address || '') : ''}
+        ${hostLine ? row('Hosted by', hostLine.replace(/^Hosted by\s+/i, ''), '') : ''}
+      </div>`;
   return `
   <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body};">
     <div style="background:${c.accent}; color:${onAccent}; padding:14px 30px;">
@@ -198,17 +206,13 @@ function renderModern({ event, flyer, colors, font, scale, imageUrl, hostLine })
       <div style="font-family:${font.heading}; font-size:${px(52 * scale)}; line-height:1.02; font-weight:800; text-transform:uppercase; letter-spacing:-0.01em;">${esc(event.title || 'Untitled event')}</div>
       <div style="width:64px; height:6px; background:${c.accent2}; margin:18px 0 6px;"></div>
       ${flyer.tagline ? `<div style="font-size:${px(17 * scale)}; margin-top:12px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
-      <div style="margin-top:10px;">
-        ${row('When', w.date, [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
-        ${event.venue_name || event.venue_address ? row('Where', event.venue_name || '', event.venue_address || '') : ''}
-        ${hostLine ? row('Hosted by', hostLine.replace(/^Hosted by\s+/i, ''), '') : ''}
-      </div>
+      ${meta}
       ${flyer.note ? `<div style="display:inline-block; background:${tint(c.accent2, 0.14)}; color:${c.ink}; border-radius:6px; padding:9px 14px; font-size:${px(13.5 * scale)}; margin-top:10px;">${esc(flyer.note)}</div>` : ''}
     </div>
   </div>`;
 }
 
-function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine }) {
+function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const dark = isDark(c.bg);
@@ -230,6 +234,13 @@ function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine }
     <div style="display:inline-block; background:${tint(c.accent, 0.12)}; border:1.5px solid ${tint(c.accent, 0.4)};
       border-radius:999px; padding:8px 18px; margin:5px 4px; font-size:${px(14.5 * scale)}; font-weight:600;">
       ${emoji} ${esc(text)}</div>` : '';
+  const meta = hideEventMeta ? '' : `
+      <div style="margin-top:22px;">
+        ${chip('&#128197;', w.date)}
+        ${chip('&#128337;', [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
+        ${chip('&#128205;', [event.venue_name, event.venue_address].filter(Boolean).join(' · '))}
+      </div>
+      ${hostLine ? `<div style="margin-top:18px; font-size:${px(14 * scale)}; font-weight:700; color:${c.accent2};">${esc(hostLine)}</div>` : ''}`;
   return `
   <div style="${confetti} padding:26px; font-family:${font.body}; color:${c.ink};">
     <div style="background:${cardBg}; border-radius:26px; padding:${px(36 * scale)} 26px; text-align:center;">
@@ -239,18 +250,13 @@ function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine }
       <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.1; font-weight:800; margin-top:20px;">${esc(event.title || 'Untitled event')}</div>
       ${flyer.tagline ? `<div style="font-size:${px(16.5 * scale)}; margin-top:10px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
       ${img}
-      <div style="margin-top:22px;">
-        ${chip('&#128197;', w.date)}
-        ${chip('&#128337;', [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
-        ${chip('&#128205;', [event.venue_name, event.venue_address].filter(Boolean).join(' · '))}
-      </div>
-      ${hostLine ? `<div style="margin-top:18px; font-size:${px(14 * scale)}; font-weight:700; color:${c.accent2};">${esc(hostLine)}</div>` : ''}
+      ${meta}
       ${flyer.note ? `<div style="margin-top:10px; font-size:${px(13.5 * scale)}; color:${tint(c.ink, 0.75)};">${esc(flyer.note)}</div>` : ''}
     </div>
   </div>`;
 }
 
-function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine }) {
+function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const hair = `1px solid ${tint(c.ink, 0.18)}`;
@@ -262,40 +268,45 @@ function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine }
       <div style="width:110px; flex:none; font-size:${px(11 * scale)}; letter-spacing:0.18em; text-transform:uppercase; color:${tint(c.ink, 0.55)}; padding-top:3px;">${esc(label)}</div>
       <div style="font-size:${px(15.5 * scale)};">${esc(value)}</div>
     </div>` : '';
-  return `
-  <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body}; padding:${px(52 * scale)} 40px;">
-    ${flyer.eyebrow ? `<div style="font-size:${px(11.5 * scale)}; letter-spacing:0.32em; text-transform:uppercase; color:${c.accent}; margin-bottom:26px;">${esc(flyer.eyebrow)}</div>` : ''}
-    <div style="font-family:${font.heading}; font-size:${px(42 * scale)}; line-height:1.15; font-weight:300;">${esc(event.title || 'Untitled event')}</div>
-    ${flyer.tagline ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; color:${tint(c.ink, 0.7)};">${esc(flyer.tagline)}</div>` : ''}
-    ${img}
+  const meta = hideEventMeta ? '' : `
     <div style="margin-top:30px;">
       ${line('Date', w.date)}
       ${line('Time', [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
       ${line('Venue', event.venue_name || '')}
       ${line('Address', event.venue_address || '')}
       ${hostLine ? line('Host', hostLine.replace(/^Hosted by\s+/i, '')) : ''}
-    </div>
+    </div>`;
+  return `
+  <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body}; padding:${px(52 * scale)} 40px;">
+    ${flyer.eyebrow ? `<div style="font-size:${px(11.5 * scale)}; letter-spacing:0.32em; text-transform:uppercase; color:${c.accent}; margin-bottom:26px;">${esc(flyer.eyebrow)}</div>` : ''}
+    <div style="font-family:${font.heading}; font-size:${px(42 * scale)}; line-height:1.15; font-weight:300;">${esc(event.title || 'Untitled event')}</div>
+    ${flyer.tagline ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; color:${tint(c.ink, 0.7)};">${esc(flyer.tagline)}</div>` : ''}
+    ${img}
+    ${meta}
     ${flyer.note ? `<div style="border-top:${hair}; margin-top:2px; padding-top:16px; font-size:${px(13 * scale)}; color:${tint(c.ink, 0.6)};">${esc(flyer.note)}</div>` : ''}
   </div>`;
 }
 
 const RENDERERS = { classic: renderClassic, modern: renderModern, festive: renderFestive, minimal: renderMinimal };
 
-export function renderFlyer({ event, flyer: rawFlyer, imageUrl = '' }) {
+// hideEventMeta drops the date/time/venue/host block so the same styles power
+// a broadcast "masthead" (title + eyebrow + tagline + image), which has no
+// event fields to show.
+export function renderFlyer({ event, flyer: rawFlyer, imageUrl = '', hideEventMeta = false }) {
   const flyer = normalizeFlyer(rawFlyer);
   const colors = flyerColors(flyer);
   const font = fontOf(flyer);
   const scale = scaleOf(flyer);
-  const hostLine = flyer.showHost && event.host_name ? `Hosted by ${event.host_name}` : '';
-  const inner = RENDERERS[flyer.style]({ event, flyer, colors, font, scale, imageUrl, hostLine });
+  const hostLine = !hideEventMeta && flyer.showHost && event.host_name ? `Hosted by ${event.host_name}` : '';
+  const inner = RENDERERS[flyer.style]({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta });
   return `<div style="max-width:640px; margin:0 auto; overflow:hidden; border-radius:12px;
     box-shadow:0 2px 8px rgba(10,10,15,0.12), 0 12px 40px rgba(10,10,15,0.12);">${inner}</div>`;
 }
 
 // Standalone document for the designer's live preview iframe.
-export function renderFlyerDocument({ event, flyer, imageUrl }) {
+export function renderFlyerDocument({ event, flyer, imageUrl, hideEventMeta = false }) {
   const colors = flyerColors(normalizeFlyer(flyer));
-  const html = renderFlyer({ event, flyer, imageUrl });
+  const html = renderFlyer({ event, flyer, imageUrl, hideEventMeta });
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body { margin:0; padding:22px 10px; background:${mixWithWhite(colors.ink, 0.07)}; color-scheme: light; }</style>
