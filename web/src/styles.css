@@ -275,6 +275,13 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   color: var(--muted); }
 .color-inputs input[type="color"] { width: 34px; height: 26px; border: 1px solid var(--line-strong);
   border-radius: 6px; padding: 1px; background: #fff; cursor: pointer; }
+.col-select { display: flex; gap: 8px; margin-bottom: 10px; }
+.col-select .btn { flex: 1; }
+.img-slots { display: flex; flex-direction: column; gap: 12px; }
+.img-slot-label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px; }
+.img-slot .img-cap { margin-top: 8px; }
+.img-slots .img-slot + .img-slot { border-top: 1px solid var(--line); padding-top: 12px; }
 .preview-frame { width: 100%; height: 640px; border: 1px solid var(--line); border-radius: 10px;
   background: #fff; }
 .email-frame { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 10px;

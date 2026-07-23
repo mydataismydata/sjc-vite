@@ -50,8 +50,11 @@ export const DEFAULT_FLYER = {
   tagline: '',
   note: '',
   showHost: true,
-  imageToken: '',
-  imageCaption: '',
+  imageColumns: 1, // 1–3: how many featured images / columns to show
+  imageTokens: [], // up to 3 upload tokens, one per column
+  imageCaptions: [], // parallel to imageTokens (e.g. speaker names)
+  imageToken: '', // legacy mirror of imageTokens[0]
+  imageCaption: '', // legacy mirror of imageCaptions[0]
 };
 
 const HEX_RE = /^#[0-9a-f]{6}$/;
@@ -77,8 +80,20 @@ export function normalizeFlyer(raw) {
   f.tagline = String(f.tagline ?? '').slice(0, 140);
   f.note = String(f.note ?? '').slice(0, 200);
   f.showHost = Boolean(f.showHost);
-  f.imageToken = /^[A-Za-z0-9]{6,64}$/.test(String(f.imageToken || '')) ? String(f.imageToken) : '';
-  f.imageCaption = String(f.imageCaption ?? '').slice(0, 160);
+  // Featured images: up to three, shown in 1/2/3 centred columns. Fold a legacy
+  // single imageToken/imageCaption into the arrays, and keep imageToken /
+  // imageCaption populated (mirroring the first image) for any older reader.
+  const validToken = (t) => (/^[A-Za-z0-9]{6,64}$/.test(String(t || '')) ? String(t) : '');
+  let tokens = Array.isArray(f.imageTokens) ? f.imageTokens : [];
+  let caps = Array.isArray(f.imageCaptions) ? f.imageCaptions : [];
+  if (!tokens.length && f.imageToken) { tokens = [f.imageToken]; caps = caps.length ? caps : [f.imageCaption]; }
+  f.imageTokens = tokens.slice(0, 3).map(validToken);
+  f.imageCaptions = f.imageTokens.map((_, i) => String(caps[i] ?? '').slice(0, 160));
+  let cols = parseInt(f.imageColumns, 10);
+  if (!(cols >= 1 && cols <= 3)) cols = 1;
+  f.imageColumns = Math.min(3, Math.max(cols, f.imageTokens.filter(Boolean).length || 1));
+  f.imageToken = f.imageTokens[0] || '';
+  f.imageCaption = f.imageCaptions[0] || '';
   return f;
 }
 
@@ -149,11 +164,23 @@ function px(n) {
   return `${Math.round(n)}px`;
 }
 
-// Optional caption rendered directly under the featured image.
-function captionHtml(flyer, colors, scale) {
-  if (!flyer.imageCaption) return '';
+// Optional caption rendered directly under a featured image.
+function captionHtml(text, colors, scale) {
+  if (!text) return '';
   return `<div style="font-size:${px(12.5 * scale)}; line-height:1.4; color:${tint(colors.ink, 0.7)};
-    margin-top:7px; text-align:center; font-style:italic;">${esc(flyer.imageCaption)}</div>`;
+    margin-top:7px; text-align:center; font-style:italic;">${esc(text)}</div>`;
+}
+
+// Render 1–3 featured images as a centred row of columns (used by every style
+// except minimal, which lays them out full width). `cell(url, n)` returns the
+// framed <img> for one image in a row of n; captions sit under each.
+function featuredImages(images, colors, scale, cell, { marginTop = 24 } = {}) {
+  const n = images.length;
+  if (!n) return '';
+  const cols = images.map(({ url, caption }) => `
+    <div style="text-align:center;">${cell(url, n)}${captionHtml(caption, colors, scale)}</div>`).join('');
+  return `<div style="display:flex; flex-wrap:wrap; gap:${px(18 * scale)}; justify-content:center;
+    align-items:flex-start; margin:${px(marginTop)} auto 4px;">${cols}</div>`;
 }
 
 // SVG "L x y" commands tracing a wavy line from A to B. The amplitude tapers to
@@ -174,15 +201,16 @@ function wavyPath(ax, ay, bx, by, { waves = 2, amp = 13, steps = 26 } = {}) {
   return out.trim();
 }
 
-function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
+function renderClassic({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
-  const img = imageUrl
-    ? `<div style="margin:26px auto 4px; width:200px; height:200px; border-radius:50%;
-         border:3px solid ${c.accent}; padding:6px;">
-         <img src="${esc(imageUrl)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;">
-       </div>${captionHtml(flyer, c, scale)}`
-    : '';
+  const size = { 1: 200, 2: 150, 3: 118 };
+  const img = featuredImages(images, c, scale, (url, n) => {
+    const d = px(size[n] * scale);
+    return `<div style="width:${d}; height:${d}; border-radius:50%; border:3px solid ${c.accent}; padding:6px;">
+         <img src="${esc(url)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;">
+       </div>`;
+  }, { marginTop: 26 });
   const divider = `<div style="color:${c.accent}; font-size:15px; letter-spacing:10px; margin:20px 0 4px;">&#10022;&nbsp;&#10022;&nbsp;&#10022;</div>`;
   const meta = hideEventMeta ? (flyer.note ? divider : '') : `
       ${divider}
@@ -205,7 +233,7 @@ function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, 
   </div>`;
 }
 
-function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
+function renderPatriotic({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const onAccent = contrastOn(c.accent);
@@ -240,12 +268,12 @@ function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine
     <rect width="240" height="150" fill="url(#pfStripes)" clip-path="url(#pfBR)"/>
     <path d="${br}" fill="none" stroke="${c.accent}" stroke-opacity="0.5" stroke-width="1.5"/>
   </svg>`;
-  const img = imageUrl
-    ? `<div style="margin:22px auto 0; max-width:${px(360 * scale)};">
-         <img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; height:${px(200 * scale)};
-           object-fit:cover; border-radius:8px; border:3px solid ${c.accent2};">
-       </div>${captionHtml(flyer, c, scale)}`
-    : '';
+  const wds = { 1: 360, 2: 232, 3: 150 };
+  const hts = { 1: 200, 2: 150, 3: 116 };
+  const img = featuredImages(images, c, scale, (url, n) => `
+       <img src="${esc(url)}" alt="" style="display:block; width:${px(wds[n] * scale)}; max-width:100%;
+         height:${px(hts[n] * scale)}; object-fit:cover; border-radius:8px; border:3px solid ${c.accent2};">`,
+    { marginTop: 22 });
   const meta = hideEventMeta ? '' : `
       <div style="margin-top:20px; font-size:${px(18 * scale)}; font-weight:700;">${esc(w.date)}</div>
       ${w.time ? `<div style="font-size:${px(15 * scale)}; margin-top:3px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
@@ -270,7 +298,7 @@ function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine
   </div>`;
 }
 
-function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
+function renderFestive({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const dark = isDark(c.bg);
@@ -282,12 +310,14 @@ function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine, 
     radial-gradient(${tint(c.accent, 0.3)} 2px, transparent 2.5px);
     background-size: 110px 110px, 74px 74px, 52px 52px;
     background-position: 0 0, 28px 40px, 15px 10px;`;
-  const img = imageUrl
-    ? `<div style="margin:22px auto 0; width:${px(190 * scale)}; height:${px(190 * scale)};">
-         <img src="${esc(imageUrl)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%;
+  const size = { 1: 190, 2: 148, 3: 116 };
+  const img = featuredImages(images, c, scale, (url, n) => {
+    const d = px(size[n] * scale);
+    return `<div style="width:${d}; height:${d};">
+         <img src="${esc(url)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%;
            border:6px solid ${c.accent2}; display:block;">
-       </div>${captionHtml(flyer, c, scale)}`
-    : '';
+       </div>`;
+  }, { marginTop: 22 });
   const chip = (emoji, text) => text ? `
     <div style="display:inline-block; background:${tint(c.accent, 0.12)}; border:1.5px solid ${tint(c.accent, 0.4)};
       border-radius:999px; padding:8px 18px; margin:5px 4px; font-size:${px(14.5 * scale)}; font-weight:600;">
@@ -314,12 +344,21 @@ function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine, 
   </div>`;
 }
 
-function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
+function renderMinimal({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const hair = `1px solid ${tint(c.ink, 0.18)}`;
-  const img = imageUrl
-    ? `<img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; aspect-ratio:16/9; object-fit:cover; margin:26px 0 4px;">${captionHtml(flyer, c, scale)}`
+  // Minimal keeps its full-width treatment: one 16/9 image, or an even row of
+  // portrait-ish images with left-aligned captions to match the quiet layout.
+  const ratio = images.length === 1 ? '16/9' : '4/5';
+  const img = images.length
+    ? `<div style="display:flex; gap:${px(14 * scale)}; margin:26px 0 4px;">
+        ${images.map(({ url, caption }) => `
+          <div style="flex:1 1 0; min-width:0;">
+            <img src="${esc(url)}" alt="" style="display:block; width:100%; aspect-ratio:${ratio}; object-fit:cover;">
+            ${caption ? `<div style="font-size:${px(11.5 * scale)}; letter-spacing:0.02em; color:${tint(c.ink, 0.6)}; margin-top:7px;">${esc(caption)}</div>` : ''}
+          </div>`).join('')}
+      </div>`
     : '';
   const line = (label, value) => value ? `
     <div style="border-top:${hair}; padding:13px 0; display:flex;">
@@ -350,21 +389,26 @@ const RENDERERS = { classic: renderClassic, patriotic: renderPatriotic, festive:
 // hideEventMeta drops the date/time/venue/host block so the same styles power
 // a broadcast "masthead" (title + eyebrow + tagline + image), which has no
 // event fields to show.
-export function renderFlyer({ event, flyer: rawFlyer, imageUrl = '', hideEventMeta = false }) {
+export function renderFlyer({ event, flyer: rawFlyer, imageUrl = '', imageUrls = null, hideEventMeta = false }) {
   const flyer = normalizeFlyer(rawFlyer);
   const colors = flyerColors(flyer);
   const font = fontOf(flyer);
   const scale = scaleOf(flyer);
   const hostLine = !hideEventMeta && flyer.showHost && event.host_name ? `Hosted by ${event.host_name}` : '';
-  const inner = RENDERERS[flyer.style]({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta });
+  // Callers pass imageUrls aligned to flyer.imageTokens (or a single legacy
+  // imageUrl). Drop empty slots and pair each surviving URL with its caption.
+  const resolved = Array.isArray(imageUrls) ? imageUrls : (imageUrl ? [imageUrl] : []);
+  const images = [];
+  resolved.forEach((u, i) => { if (u) images.push({ url: String(u), caption: flyer.imageCaptions[i] || '' }); });
+  const inner = RENDERERS[flyer.style]({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta });
   return `<div style="max-width:640px; margin:0 auto; overflow:hidden; border-radius:12px;
     box-shadow:0 2px 8px rgba(10,10,15,0.12), 0 12px 40px rgba(10,10,15,0.12);">${inner}</div>`;
 }
 
 // Standalone document for the designer's live preview iframe.
-export function renderFlyerDocument({ event, flyer, imageUrl, hideEventMeta = false }) {
+export function renderFlyerDocument({ event, flyer, imageUrl, imageUrls, hideEventMeta = false }) {
   const colors = flyerColors(normalizeFlyer(flyer));
-  const html = renderFlyer({ event, flyer, imageUrl, hideEventMeta });
+  const html = renderFlyer({ event, flyer, imageUrl, imageUrls, hideEventMeta });
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body { margin:0; padding:22px 10px; background:${mixWithWhite(colors.ink, 0.07)}; color-scheme: light; }</style>

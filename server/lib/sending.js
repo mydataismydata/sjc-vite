@@ -42,9 +42,14 @@ export function eventAccent(event) {
   return flyerColors(parseFlyer(event)).accent;
 }
 
-export function eventImageUrl(orgSlug, event) {
-  const flyer = parseFlyer(event);
-  return flyer.imageToken ? publicUrl(orgSlug, `/files/${flyer.imageToken}`) : '';
+// Public URLs for a flyer's featured images, aligned to flyer.imageTokens
+// (empty string for an empty slot). Passed straight into renderFlyer/email.
+export function flyerImageUrls(orgSlug, flyer) {
+  return normalizeFlyer(flyer).imageTokens.map((t) => (t ? publicUrl(orgSlug, `/files/${t}`) : ''));
+}
+
+export function eventImageUrls(orgSlug, event) {
+  return flyerImageUrls(orgSlug, parseFlyer(event));
 }
 
 export function inviteName(invite) {
@@ -103,7 +108,7 @@ export function renderEmailFor({ org, event, invite, kind, subjectTemplate, body
     bodyText, links, unsubUrl: links.unsub,
   };
   const rendered = kind === 'invitation'
-    ? renderInvitationEmail({ ...common, imageUrl: eventImageUrl(org.slug, event) })
+    ? renderInvitationEmail({ ...common, imageUrls: eventImageUrls(org.slug, event) })
     : renderMessageEmail({ ...common, kind });
   return { subject, html: rendered.html, text: rendered.text, toName: name, toEmail: email };
 }
@@ -230,10 +235,10 @@ export function renderBroadcastEmailFor({ org, broadcast, recipient, subjectTemp
   const bodyText = renderTags(bodyTemplate, ctx);
   const flyer = parseFlyer(broadcast);
   const accent = flyerColors(flyer).accent;
-  const imageUrl = flyer.imageToken ? publicUrl(org.slug, `/files/${flyer.imageToken}`) : '';
+  const imageUrls = flyerImageUrls(org.slug, flyer);
   const rendered = renderBroadcastEmail({
     org, accent, bannerLabel: flyer.eyebrow || '', title: broadcast.title,
-    toEmail: email, bodyText, imageUrl, viewUrl: viewUrl || '', unsubUrl: unsubUrl || '',
+    toEmail: email, bodyText, imageUrls, viewUrl: viewUrl || '', unsubUrl: unsubUrl || '',
   });
   return { subject, html: rendered.html, text: rendered.text, toName: name, toEmail: email };
 }

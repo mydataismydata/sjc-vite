@@ -10,10 +10,11 @@ let cachedPresets = null;
 export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'event' }) {
   const [presets, setPresets] = useState(cachedPresets);
   const [srcdoc, setSrcdoc] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadingSlot, setUploadingSlot] = useState(-1);
   const toast = useToast();
   const timer = useRef(null);
   const fileRef = useRef(null);
+  const pendingSlot = useRef(0);
 
   useEffect(() => {
     if (cachedPresets) return;
@@ -41,10 +42,29 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
     onChange({ ...flyer, ...patch });
   }
 
+  // Featured images live in parallel arrays (imageTokens / imageCaptions) with
+  // imageColumns slots. imageToken / imageCaption mirror the first slot so older
+  // readers still work. These helpers always write both the arrays and mirror.
+  function writeImages(tokens, captions, columns) {
+    set({
+      imageColumns: columns,
+      imageTokens: tokens,
+      imageCaptions: captions,
+      imageToken: tokens[0] || '',
+      imageCaption: captions[0] || '',
+    });
+  }
+
+  function pickImage(i) {
+    pendingSlot.current = i;
+    fileRef.current?.click();
+  }
+
   async function uploadImage(file) {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast('Images must be 5 MB or smaller', 'bad'); return; }
-    setUploading(true);
+    const slot = pendingSlot.current;
+    setUploadingSlot(slot);
     try {
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -53,14 +73,47 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
         reader.readAsDataURL(file);
       });
       const up = await api.post('/api/uploads', { name: file.name, data: dataUrl });
-      set({ imageToken: up.token });
+      const cols = imageCols();
+      const tokens = imageSlots(cols).map((t, i) => (i === slot ? up.token : t));
+      writeImages(tokens, captionSlots(cols), cols);
       toast('Image added to the flyer');
     } catch (err) {
       toast(err.message, 'bad');
     } finally {
-      setUploading(false);
+      setUploadingSlot(-1);
       if (fileRef.current) fileRef.current.value = '';
     }
+  }
+
+  // Read the current featured-image state as fixed-length arrays. Older flyers
+  // stored a single imageToken/imageCaption — fold those into slot 0.
+  function imageCols() {
+    return Math.min(3, Math.max(1, Number(flyer.imageColumns) || 1));
+  }
+  function imageSlots(n) {
+    const arr = Array.isArray(flyer.imageTokens) && flyer.imageTokens.length
+      ? flyer.imageTokens : (flyer.imageToken ? [flyer.imageToken] : []);
+    return Array.from({ length: n }, (_, i) => arr[i] || '');
+  }
+  function captionSlots(n) {
+    const arr = Array.isArray(flyer.imageCaptions) && flyer.imageCaptions.length
+      ? flyer.imageCaptions : (flyer.imageCaption ? [flyer.imageCaption] : []);
+    return Array.from({ length: n }, (_, i) => arr[i] || '');
+  }
+
+  function setColumns(n) {
+    writeImages(imageSlots(n), captionSlots(n), n);
+  }
+  function setImageAt(i, token) {
+    const cols = imageCols();
+    const tokens = imageSlots(cols).map((t, k) => (k === i ? token : t));
+    const captions = captionSlots(cols).map((c, k) => (k === i && !token ? '' : c));
+    writeImages(tokens, captions, cols);
+  }
+  function setCaptionAt(i, caption) {
+    const cols = imageCols();
+    const captions = captionSlots(cols).map((c, k) => (k === i ? caption : c));
+    writeImages(imageSlots(cols), captions, cols);
   }
 
   if (!presets) return null;
@@ -70,6 +123,9 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
     bg: activePalette.bg, ink: activePalette.ink,
     accent: activePalette.accent, accent2: activePalette.accent2,
   };
+  const cols = imageCols();
+  const tokens = imageSlots(cols);
+  const captions = captionSlots(cols);
 
   return (
     <div className="designer">
@@ -150,28 +206,43 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
           </label>
         ) : null}
 
-        <Field label="Featured image" hint="Optional. JPEG/PNG/GIF/WebP up to 5 MB — each style frames it differently.">
-          <div className="row">
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp"
-              style={{ display: 'none' }} onChange={(e) => uploadImage(e.target.files?.[0])} />
-            <button type="button" className="btn" disabled={uploading}
-              onClick={() => fileRef.current?.click()}>
-              {uploading ? 'Uploading…' : flyer.imageToken ? 'Replace image' : 'Add image'}
-            </button>
-            {flyer.imageToken ? (
-              <button type="button" className="btn btn-ghost" onClick={() => set({ imageToken: '' })}>
-                Remove
+        <Field label="Featured images"
+          hint="Optional. Show one image, or up to three side by side — e.g. featured speakers. JPEG/PNG/GIF/WebP up to 5 MB.">
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp"
+            style={{ display: 'none' }} onChange={(e) => uploadImage(e.target.files?.[0])} />
+          <div className="col-select" role="group" aria-label="Number of featured images">
+            {[1, 2, 3].map((n) => (
+              <button key={n} type="button"
+                className={`btn btn-sm ${cols === n ? 'btn-primary' : ''}`}
+                onClick={() => setColumns(n)}>
+                {n === 1 ? '1 image' : `${n} images`}
               </button>
-            ) : null}
+            ))}
+          </div>
+          <div className="img-slots">
+            {tokens.map((tok, i) => (
+              <div className="img-slot" key={i}>
+                {cols > 1 ? <div className="img-slot-label">Image {i + 1}</div> : null}
+                <div className="row">
+                  <button type="button" className="btn" disabled={uploadingSlot !== -1}
+                    onClick={() => pickImage(i)}>
+                    {uploadingSlot === i ? 'Uploading…' : tok ? 'Replace' : 'Add image'}
+                  </button>
+                  {tok ? (
+                    <button type="button" className="btn btn-ghost" onClick={() => setImageAt(i, '')}>
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                {tok ? (
+                  <input className="img-cap" value={captions[i] || ''} maxLength={160}
+                    placeholder={cols > 1 ? 'Caption / speaker name (optional)' : "Caption (optional) — e.g. Last year's rally"}
+                    onChange={(e) => setCaptionAt(i, e.target.value)} />
+                ) : null}
+              </div>
+            ))}
           </div>
         </Field>
-
-        {flyer.imageToken ? (
-          <Field label="Image caption" hint="Optional — a short line shown under the featured image.">
-            <input value={flyer.imageCaption || ''} maxLength={160} placeholder="e.g. Last year's rally"
-              onChange={(e) => set({ imageCaption: e.target.value })} />
-          </Field>
-        ) : null}
       </div>
 
       <div>

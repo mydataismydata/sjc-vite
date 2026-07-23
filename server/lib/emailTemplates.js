@@ -77,8 +77,28 @@ function shell({ accent, preheader, headerHtml, contentHtml, footerHtml }) {
 </body></html>`;
 }
 
-function header({ accent, orgName, bannerLabel, title, whenLine, imageUrl }) {
+// The email banner: 1–3 featured images in a row (email-safe table layout).
+function headerImages(imageUrls) {
+  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(Boolean);
+  if (!urls.length) return '';
+  if (urls.length === 1) {
+    return `<tr><td style="padding:0; line-height:0;">
+      <img src="${esc(urls[0])}" alt="" width="600" style="width:100%; max-height:300px; object-fit:cover; display:block;">
+    </td></tr>`;
+  }
+  const w = Math.floor(600 / urls.length);
+  const h = urls.length === 2 ? 200 : 150;
+  const cells = urls.map((u) => `<td width="${w}" style="padding:0; line-height:0; vertical-align:top;">
+    <img src="${esc(u)}" alt="" width="${w}" style="width:100%; height:${h}px; object-fit:cover; display:block;">
+  </td>`).join('');
+  return `<tr><td style="padding:0; line-height:0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>${cells}</tr></table>
+  </td></tr>`;
+}
+
+function header({ accent, orgName, bannerLabel, title, whenLine, imageUrl, imageUrls }) {
   const onAccent = contrastOn(accent);
+  const urls = imageUrls || (imageUrl ? [imageUrl] : []);
   return `
   <tr><td bgcolor="${accent}" style="padding:26px 36px 22px;">
     <div style="font-size:12.5px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase;
@@ -86,9 +106,7 @@ function header({ accent, orgName, bannerLabel, title, whenLine, imageUrl }) {
     <div style="font-size:27px; font-weight:800; color:${onAccent}; padding-top:6px; line-height:1.2;">${esc(title)}</div>
     ${whenLine ? `<div style="font-size:14.5px; color:${onAccent}; opacity:0.9; padding-top:6px;">${esc(whenLine)}</div>` : ''}
   </td></tr>
-  ${imageUrl ? `<tr><td style="padding:0; line-height:0;">
-    <img src="${esc(imageUrl)}" alt="" width="600" style="width:100%; max-height:300px; object-fit:cover; display:block;">
-  </td></tr>` : ''}`;
+  ${headerImages(urls)}`;
 }
 
 function footer({ orgName, toEmail, unsubUrl, note, viewUrl }) {
@@ -117,7 +135,7 @@ function rsvpButtons(links) {
 
 // --- public API ------------------------------------------------------------
 
-export function renderInvitationEmail({ org, event, accent, toName, toEmail, bodyText, links, imageUrl, unsubUrl }) {
+export function renderInvitationEmail({ org, event, accent, toName, toEmail, bodyText, links, imageUrl, imageUrls, unsubUrl }) {
   const whenLine = formatWhen(event);
   const isRsvp = event.rsvp_mode === 'rsvp';
   const content = `
@@ -133,7 +151,7 @@ export function renderInvitationEmail({ org, event, accent, toName, toEmail, bod
   const html = shell({
     accent,
     preheader: `${event.title} — ${whenLine}`,
-    headerHtml: header({ accent, orgName: org.name, bannerLabel: "You're invited", title: event.title, whenLine, imageUrl }),
+    headerHtml: header({ accent, orgName: org.name, bannerLabel: "You're invited", title: event.title, whenLine, imageUrl, imageUrls }),
     contentHtml: content,
     footerHtml: footer({ orgName: org.name, toEmail, unsubUrl }),
   });
@@ -193,7 +211,7 @@ export function renderMessageEmail({ kind, org, event, accent, toEmail, bodyText
 // Standalone broadcast (email blast not tied to an event): the flyer accent
 // and optional featured image in the header, the message body, then footer
 // with the "view online" and unsubscribe links. No event details, no RSVP.
-export function renderBroadcastEmail({ org, accent, bannerLabel, title, toEmail, bodyText, imageUrl, viewUrl, unsubUrl }) {
+export function renderBroadcastEmail({ org, accent, bannerLabel, title, toEmail, bodyText, imageUrl, imageUrls, viewUrl, unsubUrl }) {
   const content = textToHtml(bodyText)
     ? `<div style="font-size:15.5px; line-height:1.65; color:#374151; padding-top:16px;">${textToHtml(bodyText)}</div>`
     : '';
@@ -202,7 +220,7 @@ export function renderBroadcastEmail({ org, accent, bannerLabel, title, toEmail,
     preheader: title || bannerLabel || org.name,
     headerHtml: header({
       accent, orgName: org.name, bannerLabel: bannerLabel || org.name,
-      title: title || org.name, whenLine: '', imageUrl,
+      title: title || org.name, whenLine: '', imageUrl, imageUrls,
     }),
     contentHtml: content,
     footerHtml: footer({ orgName: org.name, toEmail, unsubUrl, viewUrl }),

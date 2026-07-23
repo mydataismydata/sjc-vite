@@ -97,8 +97,9 @@ leave and resume any time (it stays a draft until you send or publish).
    controls whether strangers with the link can RSVP.
 3. **Invitation & flyer** — design the flyer: pick one of four styles, a
    palette (or custom colors), fonts, title size, three short text slots
-   (eyebrow / tagline / footnote), and an optional featured image. The
-   preview is live and pixel-identical to the public page. Below it, write
+   (eyebrow / tagline / footnote), and up to three featured images shown side
+   by side in 1/2/3 columns (e.g. featured speakers), each with an optional
+   caption. The preview is live and pixel-identical to the public page. Below it, write
    the email: start from a template, insert placeholders, and *Preview
    email* to see the real rendering.
 4. **Guests** — tick groups, tick individual contacts, and add brand-new
