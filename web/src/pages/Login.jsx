@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Field } from '../ui.jsx';
 
@@ -7,6 +7,13 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [build, setBuild] = useState(null);
+
+  // Unauthenticated build check, so the running build can be confirmed from
+  // the login screen right after a deploy.
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then(setBuild).catch(() => {});
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -39,6 +46,9 @@ export default function Login({ onLogin }) {
         <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 12 }} disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+        {build?.build ? (
+          <p className="login-build">v{build.version} · build {build.build}</p>
+        ) : null}
       </form>
     </div>
   );

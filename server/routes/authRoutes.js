@@ -70,6 +70,6 @@ authRouter.get('/auth/me', wrap(async (req, res) => {
       role: resolved.user.role,
     },
     org: { slug: resolved.org.slug, name: resolved.org.name },
-    app: { name: config.appName, base_url: config.baseUrl },
+    app: { name: config.appName, base_url: config.baseUrl, version: config.version, build: config.build },
   });
 }));

@@ -33,7 +33,7 @@ const NAV = [
 ];
 
 function Layout({ children }) {
-  const { user, org, logout } = useAuth();
+  const { user, org, app, logout } = useAuth();
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -50,6 +50,11 @@ function Layout({ children }) {
         <div className="side-footer">
           <div className="who" title={user.email}>{user.name}</div>
           <button onClick={logout}>Sign out</button>
+          {app?.build ? (
+            <div className="side-build" title={`Version ${app.version}`}>
+              v{app.version} · build {app.build}
+            </div>
+          ) : null}
         </div>
       </aside>
       <main className="main">{children}</main>

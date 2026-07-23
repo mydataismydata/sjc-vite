@@ -67,6 +67,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .side-footer button { background: none; border: 0; color: #7c8494; cursor: pointer; padding: 4px 0;
   font: inherit; font-size: 12.5px; }
 .side-footer button:hover { color: #fff; }
+.side-build { font-size: 11px; color: #5c6474; margin-top: 8px; letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums; }
 
 .main { min-width: 0; }
 .page { max-width: 1060px; margin: 0 auto; padding: 26px 28px 70px; }
@@ -299,6 +301,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .login-brand { font-size: 22px; font-weight: 800; margin: 0; }
 .login-brand .tick { color: var(--accent); }
 .login-sub { color: var(--muted); font-size: 13.5px; margin: 4px 0 22px; }
+.login-build { color: var(--muted); font-size: 11.5px; text-align: center; margin: 16px 0 0;
+  font-variant-numeric: tabular-nums; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }

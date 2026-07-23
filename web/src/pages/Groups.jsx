@@ -27,6 +27,15 @@ function GroupModal({ group, contacts, onClose, onSaved }) {
       || (c.email || '').toLowerCase().includes(needle));
   }, [contacts, q]);
 
+  // "Select all" acts on whatever is currently shown, so searching first and
+  // then selecting all adds just those matches.
+  const allShownSelected = filtered.length > 0 && filtered.every((c) => memberIds.has(c.id));
+  function toggleAllShown() {
+    const next = new Set(memberIds);
+    for (const c of filtered) allShownSelected ? next.delete(c.id) : next.add(c.id);
+    setMemberIds(next);
+  }
+
   async function save() {
     setBusy(true);
     try {
@@ -68,6 +77,16 @@ function GroupModal({ group, contacts, onClose, onSaved }) {
       <Field label={`Members (${memberIds.size})`}>
         <input className="search-input" placeholder="Search contacts…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+        {loaded && filtered.length > 0 ? (
+          <div className="spread" style={{ marginBottom: 8 }}>
+            <span className="small muted">
+              {q.trim() ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : `${filtered.length} contact${filtered.length === 1 ? '' : 's'}`}
+            </span>
+            <button type="button" className="btn btn-sm" onClick={toggleAllShown}>
+              {allShownSelected ? 'Deselect all' : q.trim() ? 'Select all matches' : 'Select all'}
+            </button>
+          </div>
+        ) : null}
         <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 9 }}>
           {!loaded ? <Spinner /> : filtered.length === 0 ? (
             <p className="muted" style={{ padding: 14 }}>No contacts found.</p>

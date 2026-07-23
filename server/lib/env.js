@@ -7,6 +7,15 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+// package.json is the single source of truth for the version and build number.
+// The build number is bumped on every commit and shown in the app so a deploy
+// can be confirmed as the latest.
+function loadPackage() {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')); }
+  catch { return {}; }
+}
+const pkg = loadPackage();
+
 function loadDotEnv() {
   const file = path.join(ROOT, '.env');
   if (!fs.existsSync(file)) return;
@@ -45,6 +54,8 @@ export const config = {
   port,
   nodeEnv,
   isProd: nodeEnv === 'production',
+  version: pkg.version || '0.0.0',
+  build: Number(pkg.build || 0),
   baseUrl: (process.env.BASE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
   dataDir,
   orgsDir: path.join(dataDir, 'orgs'),
