@@ -8,7 +8,7 @@ import { formatDate, formatTimeRange } from './format.js';
 
 export const STYLES = [
   { id: 'classic', label: 'Classic', description: 'Centered and elegant, with a framed border and serif type.' },
-  { id: 'modern', label: 'Modern', description: 'Bold color blocks, big type, strong left alignment.' },
+  { id: 'patriotic', label: 'Patriotic', description: 'A star field and stripes, with a red-white-blue palette by default.' },
   { id: 'festive', label: 'Festive', description: 'Playful confetti backdrop, rounded shapes, detail chips.' },
   { id: 'minimal', label: 'Minimal', description: 'Quiet, airy layout with hairline rules and light type.' },
 ];
@@ -22,6 +22,7 @@ export const PALETTES = [
   { id: 'berry', label: 'Berry', bg: '#fdf1f7', ink: '#43122f', accent: '#bd1d61', accent2: '#7434c9' },
   { id: 'slate', label: 'Slate', bg: '#f4f5f7', ink: '#222933', accent: '#3c495c', accent2: '#6b7a90' },
   { id: 'noir', label: 'Noir', bg: '#101010', ink: '#f5f5f5', accent: '#d8c69a', accent2: '#8f8f8f' },
+  { id: 'patriot', label: 'Patriot', bg: '#ffffff', ink: '#0f1f47', accent: '#b22234', accent2: '#3c3b6e' },
 ];
 
 export const FONTS = [
@@ -50,6 +51,7 @@ export const DEFAULT_FLYER = {
   note: '',
   showHost: true,
   imageToken: '',
+  imageCaption: '',
 };
 
 const HEX_RE = /^#[0-9a-f]{6}$/;
@@ -76,6 +78,7 @@ export function normalizeFlyer(raw) {
   f.note = String(f.note ?? '').slice(0, 200);
   f.showHost = Boolean(f.showHost);
   f.imageToken = /^[A-Za-z0-9]{6,64}$/.test(String(f.imageToken || '')) ? String(f.imageToken) : '';
+  f.imageCaption = String(f.imageCaption ?? '').slice(0, 160);
   return f;
 }
 
@@ -146,6 +149,13 @@ function px(n) {
   return `${Math.round(n)}px`;
 }
 
+// Optional caption rendered directly under the featured image.
+function captionHtml(flyer, colors, scale) {
+  if (!flyer.imageCaption) return '';
+  return `<div style="font-size:${px(12.5 * scale)}; line-height:1.4; color:${tint(colors.ink, 0.7)};
+    margin-top:7px; text-align:center; font-style:italic;">${esc(flyer.imageCaption)}</div>`;
+}
+
 function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
@@ -153,7 +163,7 @@ function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, 
     ? `<div style="margin:26px auto 4px; width:200px; height:200px; border-radius:50%;
          border:3px solid ${c.accent}; padding:6px;">
          <img src="${esc(imageUrl)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;">
-       </div>`
+       </div>${captionHtml(flyer, c, scale)}`
     : '';
   const divider = `<div style="color:${c.accent}; font-size:15px; letter-spacing:10px; margin:20px 0 4px;">&#10022;&nbsp;&#10022;&nbsp;&#10022;</div>`;
   const meta = hideEventMeta ? (flyer.note ? divider : '') : `
@@ -177,37 +187,45 @@ function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, 
   </div>`;
 }
 
-function renderModern({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
+function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
   const onAccent = contrastOn(c.accent);
+  const starRows = Array.from({ length: 4 }, () => '★★★★★').join('<br>');
+  const starField = `<div style="position:absolute; top:0; left:0; z-index:0;
+    background:${c.accent2}; color:#ffffff; padding:${px(10 * scale)} ${px(15 * scale)};
+    font-size:${px(13 * scale)}; line-height:1.4; letter-spacing:3px;
+    border-bottom-right-radius:16px;">${starRows}</div>`;
+  const stripes = `<div style="position:absolute; bottom:0; right:0; z-index:0;
+    width:${px(180 * scale)}; height:${px(84 * scale)};
+    background:repeating-linear-gradient(180deg, ${c.accent} 0 ${px(11 * scale)}, #ffffff ${px(11 * scale)} ${px(22 * scale)});
+    border-top-left-radius:16px; opacity:0.92;"></div>`;
   const img = imageUrl
-    ? `<img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; height:${px(250 * scale)}; object-fit:cover;">`
+    ? `<div style="margin:22px auto 0; max-width:${px(360 * scale)};">
+         <img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; height:${px(200 * scale)};
+           object-fit:cover; border-radius:8px; border:3px solid ${c.accent2};">
+       </div>${captionHtml(flyer, c, scale)}`
     : '';
-  const row = (label, main, sub) => `
-    <div style="border-left:4px solid ${c.accent2}; padding:6px 0 6px 16px; margin:14px 0;">
-      <div style="font-size:${px(11.5 * scale)}; text-transform:uppercase; letter-spacing:0.14em; color:${tint(c.ink, 0.65)};">${esc(label)}</div>
-      <div style="font-size:${px(17 * scale)}; font-weight:700; margin-top:2px;">${esc(main)}</div>
-      ${sub ? `<div style="font-size:${px(14 * scale)}; color:${tint(c.ink, 0.8)};">${esc(sub)}</div>` : ''}
-    </div>`;
   const meta = hideEventMeta ? '' : `
-      <div style="margin-top:10px;">
-        ${row('When', w.date, [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
-        ${event.venue_name || event.venue_address ? row('Where', event.venue_name || '', event.venue_address || '') : ''}
-        ${hostLine ? row('Hosted by', hostLine.replace(/^Hosted by\s+/i, ''), '') : ''}
-      </div>`;
+      <div style="margin-top:20px; font-size:${px(18 * scale)}; font-weight:700;">${esc(w.date)}</div>
+      ${w.time ? `<div style="font-size:${px(15 * scale)}; margin-top:3px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
+      ${event.venue_name ? `<div style="font-size:${px(16 * scale)}; margin-top:12px; font-weight:600;">${esc(event.venue_name)}</div>` : ''}
+      ${event.venue_address ? `<div style="font-size:${px(13.5 * scale)}; margin-top:2px; color:${tint(c.ink, 0.8)};">${esc(event.venue_address)}</div>` : ''}
+      ${hostLine ? `<div style="margin-top:16px; font-size:${px(12.5 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${c.accent};">${esc(hostLine)}</div>` : ''}`;
   return `
-  <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body};">
-    <div style="background:${c.accent}; color:${onAccent}; padding:14px 30px;">
-      <span style="font-size:${px(13 * scale)}; font-weight:700; text-transform:uppercase; letter-spacing:0.22em;">${esc(flyer.eyebrow || ' ')}</span>
-    </div>
-    ${img}
-    <div style="padding:${px(34 * scale)} 30px ${px(38 * scale)};">
-      <div style="font-family:${font.heading}; font-size:${px(52 * scale)}; line-height:1.02; font-weight:800; text-transform:uppercase; letter-spacing:-0.01em;">${esc(event.title || 'Untitled event')}</div>
-      <div style="width:64px; height:6px; background:${c.accent2}; margin:18px 0 6px;"></div>
-      ${flyer.tagline ? `<div style="font-size:${px(17 * scale)}; margin-top:12px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
+  <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.ink}; font-family:${font.body};
+       border-top:6px solid ${c.accent}; padding:${px(40 * scale)} 30px ${px(44 * scale)};">
+    ${starField}
+    ${stripes}
+    <div style="position:relative; z-index:1; text-align:center; padding-top:${px(12 * scale)};">
+      ${flyer.eyebrow ? `<div style="display:inline-block; background:${c.accent}; color:${onAccent};
+        padding:7px 18px; border-radius:4px; font-size:${px(12.5 * scale)}; font-weight:800;
+        letter-spacing:0.14em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
+      <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.08; font-weight:800; margin-top:16px;">${esc(event.title || 'Untitled event')}</div>
+      ${flyer.tagline ? `<div style="font-size:${px(16.5 * scale)}; margin-top:12px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
+      ${img}
       ${meta}
-      ${flyer.note ? `<div style="display:inline-block; background:${tint(c.accent2, 0.14)}; color:${c.ink}; border-radius:6px; padding:9px 14px; font-size:${px(13.5 * scale)}; margin-top:10px;">${esc(flyer.note)}</div>` : ''}
+      ${flyer.note ? `<div style="margin-top:16px; font-size:${px(13 * scale)}; color:${tint(c.ink, 0.72)};">${esc(flyer.note)}</div>` : ''}
     </div>
   </div>`;
 }
@@ -228,7 +246,7 @@ function renderFestive({ event, flyer, colors, font, scale, imageUrl, hostLine, 
     ? `<div style="margin:22px auto 0; width:${px(190 * scale)}; height:${px(190 * scale)};">
          <img src="${esc(imageUrl)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%;
            border:6px solid ${c.accent2}; display:block;">
-       </div>`
+       </div>${captionHtml(flyer, c, scale)}`
     : '';
   const chip = (emoji, text) => text ? `
     <div style="display:inline-block; background:${tint(c.accent, 0.12)}; border:1.5px solid ${tint(c.accent, 0.4)};
@@ -261,7 +279,7 @@ function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine, 
   const w = whenParts(event);
   const hair = `1px solid ${tint(c.ink, 0.18)}`;
   const img = imageUrl
-    ? `<img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; aspect-ratio:16/9; object-fit:cover; margin:26px 0 4px;">`
+    ? `<img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; aspect-ratio:16/9; object-fit:cover; margin:26px 0 4px;">${captionHtml(flyer, c, scale)}`
     : '';
   const line = (label, value) => value ? `
     <div style="border-top:${hair}; padding:13px 0; display:flex;">
@@ -287,7 +305,7 @@ function renderMinimal({ event, flyer, colors, font, scale, imageUrl, hostLine, 
   </div>`;
 }
 
-const RENDERERS = { classic: renderClassic, modern: renderModern, festive: renderFestive, minimal: renderMinimal };
+const RENDERERS = { classic: renderClassic, patriotic: renderPatriotic, festive: renderFestive, minimal: renderMinimal };
 
 // hideEventMeta drops the date/time/venue/host block so the same styles power
 // a broadcast "masthead" (title + eyebrow + tagline + image), which has no

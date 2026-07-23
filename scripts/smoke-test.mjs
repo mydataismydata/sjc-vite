@@ -159,6 +159,8 @@ let groupId = null;
 {
   const tags = await A.api('GET', '/api/merge-tags');
   check('merge tags listed', Array.isArray(tags.data?.tags) && tags.data.tags.some((t) => t.tag === 'accept_link'));
+  check('full_name tag replaces recipient_name',
+    tags.data.tags.some((t) => t.tag === 'full_name') && !tags.data.tags.some((t) => t.tag === 'recipient_name'));
   const tpl = await A.api('POST', '/api/templates', {
     name: 'Test template', subject: 'Come to {{event_title}}', body: 'Hi {{first_name}}, see you at {{venue_name}}!',
   });
@@ -204,11 +206,21 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
   check('create event', r.status === 201 && eventId > 0 && /^[a-z0-9]{10}$/.test(eventSlug || ''));
 
   const upd = await A.api('PUT', `/api/events/${eventId}`, {
-    flyer: { style: 'modern', paletteId: 'midnight', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing' },
+    flyer: { style: 'patriotic', paletteId: 'patriot', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing', imageCaption: 'Last year' },
     email_subject: "You're invited: {{event_title}}",
     email_body: 'Hi {{first_name}},\n\nJoin us at {{venue_name}} on {{event_date}}.\n\nRSVP: {{rsvp_link}}',
   });
-  check('update event + flyer', upd.status === 200 && upd.data?.event?.flyer?.style === 'modern');
+  check('update event + flyer', upd.status === 200 && upd.data?.event?.flyer?.style === 'patriotic');
+  check('flyer image caption stored', upd.data?.event?.flyer?.imageCaption === 'Last year');
+
+  // Rich-text description is sanitized: safe tags kept, scripts + junk dropped.
+  const rich = await A.api('PUT', `/api/events/${eventId}`, {
+    description: '<b>Bold</b> and <span class="rt-fs-lg danger">big</span><script>alert(1)</script>',
+  });
+  const desc = rich.data?.event?.description || '';
+  check('description keeps safe formatting', desc.includes('<b>Bold</b>') && desc.includes('class="rt-fs-lg"'));
+  check('description strips scripts + unknown classes',
+    !/<script/i.test(desc) && !desc.includes('danger'));
 
   const draftHidden = await fetch(`${BASE}/o/alpha/e/${eventSlug}`);
   check('draft landing hidden from public', draftHidden.status === 404);
@@ -438,7 +450,7 @@ let guests = [];
     subject: 'Our endorsements for {{org_name}}',
     body: 'Hi {{first_name}},\n\nHere are our picks for the primary.\n\n— {{org_name}}',
     web_version: true,
-    flyer: { style: 'modern', paletteId: 'slate', eyebrow: 'Announcement' },
+    flyer: { style: 'classic', paletteId: 'slate', eyebrow: 'Announcement' },
   });
   const bId = cr.data?.broadcast?.id;
   const bSlug = cr.data?.broadcast?.slug;

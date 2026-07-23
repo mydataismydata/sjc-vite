@@ -14,6 +14,8 @@ settingsRouter.get('/settings', wrap(async (req, res) => {
       sender_email: getSetting(req.db, 'sender_email', ''),
       reply_to: getSetting(req.db, 'reply_to', ''),
       smtp2go_key_set: Boolean(getSetting(req.db, 'smtp2go_api_key', '')),
+      default_start_time: getSetting(req.db, 'default_start_time', ''),
+      default_end_time: getSetting(req.db, 'default_end_time', ''),
     },
     env: {
       smtp2go_key_present: Boolean(config.smtp2goApiKey),
@@ -41,6 +43,12 @@ settingsRouter.put('/settings', requireAdmin, wrap(async (req, res) => {
   if (b.smtp2go_api_key !== undefined) {
     const key = v.optStr(b.smtp2go_api_key, { label: 'API key', max: 200 });
     setSetting(req.db, 'smtp2go_api_key', key);
+  }
+  if (b.default_start_time !== undefined) {
+    setSetting(req.db, 'default_start_time', v.time(b.default_start_time, { label: 'Default start time' }));
+  }
+  if (b.default_end_time !== undefined) {
+    setSetting(req.db, 'default_end_time', v.time(b.default_end_time, { label: 'Default end time' }));
   }
   res.json({ ok: true });
 }));

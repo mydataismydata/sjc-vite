@@ -3,6 +3,7 @@ import { insertId, withTx } from '../lib/db.js';
 import { wrap, v, ApiError } from '../lib/validate.js';
 import { randomSlug, randomToken } from '../lib/tokens.js';
 import { normalizeFlyer } from '../lib/flyer.js';
+import { sanitizeRichText } from '../lib/sanitizeHtml.js';
 import { eventStats } from '../lib/stats.js';
 import { orgApiKey, orgSender, sendEmail } from '../lib/email.js';
 import { getSetting } from '../lib/db.js';
@@ -52,7 +53,7 @@ function serializeGuest(row) {
 // Fields the wizard / edit forms may set. Each validator normalizes or throws.
 const EVENT_FIELDS = {
   title: (x) => v.str(x, { label: 'Title', max: 200 }),
-  description: (x) => v.optStr(x, { label: 'Description', max: 5000 }),
+  description: (x) => sanitizeRichText(v.optStr(x, { label: 'Description', max: 20000 })),
   host_name: (x) => v.optStr(x, { label: 'Host name', max: 200 }),
   venue_name: (x) => v.optStr(x, { label: 'Venue name', max: 200 }),
   venue_address: (x) => v.optStr(x, { label: 'Venue address', max: 400 }),
@@ -66,7 +67,8 @@ const EVENT_FIELDS = {
   rsvp_deadline: (x) => v.date(x, { label: 'RSVP deadline', required: false }),
   capacity: (x) => (x === null || x === '' ? null : v.int(x, { label: 'Capacity', min: 1, max: 1000000 })),
   allow_plus_ones: (x) => (v.bool(x, true) ? 1 : 0),
-  max_party_size: (x) => v.int(x, { label: 'Max party size', min: 1, max: 50, required: false, fallback: 5 }),
+  // 0 = unlimited (no cap on plus-ones).
+  max_party_size: (x) => v.int(x, { label: 'Max party size', min: 0, max: 99, required: false, fallback: 0 }),
   show_guest_list: (x) => (v.bool(x, false) ? 1 : 0),
   share_enabled: (x) => (v.bool(x, true) ? 1 : 0),
   email_subject: (x) => v.optStr(x, { label: 'Email subject', max: 300 }),
@@ -272,7 +274,7 @@ eventRouter.put('/events/:id/guests/:inviteId', wrap(async (req, res) => {
       : v.oneOf(req.body.response, ['yes', 'no'], { label: 'Response' }));
   const partySize = req.body.party_size === undefined
     ? invite.party_size
-    : v.int(req.body.party_size, { label: 'Party size', min: 1, max: 50 });
+    : v.int(req.body.party_size, { label: 'Party size', min: 1, max: 99 });
   const note = req.body.note === undefined ? invite.note : v.optStr(req.body.note, { label: 'Note', max: 1000 });
 
   const respondedAt = response !== invite.response

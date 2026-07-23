@@ -18,9 +18,10 @@ export default function TagButtons({ onInsert, compact, tags: tagsProp }) {
       ? tags.filter((t) => ['first_name', 'event_title', 'event_date', 'event_time', 'venue_name', 'host_name', 'rsvp_deadline'].includes(t.tag))
       : tags);
   if (shown.length === 0) return null;
+  const sorted = [...shown].sort((a, b) => a.label.localeCompare(b.label));
   return (
     <div className="chip-row" style={{ marginTop: 6 }}>
-      {shown.map((t) => (
+      {sorted.map((t) => (
         <button
           key={t.tag}
           type="button"

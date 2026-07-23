@@ -1,10 +1,11 @@
 // Placeholder ("merge tag") support for invitation text. Tags look like
 // {{event_date}} and are replaced per-recipient at send time.
 import { formatDate, formatTimeRange, firstName } from './format.js';
+import { stripHtml } from './sanitizeHtml.js';
 
 export const TAG_DEFS = [
   { tag: 'first_name', label: 'Guest first name', sample: 'Alex' },
-  { tag: 'recipient_name', label: 'Guest full name', sample: 'Alex Rivera' },
+  { tag: 'full_name', label: 'Guest full name', sample: 'Alex Rivera' },
   { tag: 'event_title', label: 'Event title', sample: 'Summer Gala' },
   { tag: 'event_date', label: 'Event date', sample: 'Saturday, August 15, 2026' },
   { tag: 'event_time', label: 'Event time', sample: '6:00 PM – 9:00 PM' },
@@ -26,7 +27,8 @@ export function buildTagContext({ org, event, inviteName, links = {} }) {
   const name = String(inviteName || '').trim();
   return {
     first_name: firstName(name) || 'there',
-    recipient_name: name || 'there',
+    full_name: name || 'there',
+    recipient_name: name || 'there', // legacy alias so older templates keep working
     event_title: event.title || '',
     event_date: formatDate(event.date) || 'Date to be announced',
     event_time: formatTimeRange(event.start_time, event.end_time) || '',
@@ -35,7 +37,7 @@ export function buildTagContext({ org, event, inviteName, links = {} }) {
     venue_phone: event.venue_phone || '',
     host_name: event.host_name || org.name || '',
     rsvp_deadline: formatDate(event.rsvp_deadline) || '',
-    event_description: event.description || '',
+    event_description: stripHtml(event.description) || '',
     org_name: org.name || '',
     event_link: links.event || '',
     rsvp_link: links.rsvp || '',
@@ -47,7 +49,7 @@ export function buildTagContext({ org, event, inviteName, links = {} }) {
 // Broadcasts have no event/RSVP context, so only a handful of tags apply.
 export const BROADCAST_TAG_DEFS = [
   { tag: 'first_name', label: 'Recipient first name', sample: 'Alex' },
-  { tag: 'recipient_name', label: 'Recipient full name', sample: 'Alex Rivera' },
+  { tag: 'full_name', label: 'Recipient full name', sample: 'Alex Rivera' },
   { tag: 'org_name', label: 'Organization name', sample: 'Community Club' },
 ];
 
@@ -55,7 +57,8 @@ export function buildBroadcastTagContext({ org, recipientName, links = {} }) {
   const name = String(recipientName || '').trim();
   return {
     first_name: firstName(name) || 'there',
-    recipient_name: name || 'there',
+    full_name: name || 'there',
+    recipient_name: name || 'there', // legacy alias
     org_name: org?.name || '',
     view_link: links.view || '',
   };

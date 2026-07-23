@@ -63,7 +63,7 @@ contactIds.slice(5, 9).forEach((id) => addMember.run(volunteersId, id));
 db.prepare('INSERT INTO templates (name, subject, body) VALUES (?, ?, ?)').run(
   'Formal invitation',
   'An invitation from {{org_name}}: {{event_title}}',
-  `Dear {{recipient_name}},
+  `Dear {{full_name}},
 
 {{host_name}} requests the pleasure of your company at {{event_title}}, to be held on {{event_date}} at {{venue_name}}.
 

@@ -11,7 +11,7 @@ const STEPS = ['Details', 'Design & message', 'Recipients', 'Review & send'];
 // Broadcasts have no event/RSVP context, so only a few tags apply.
 const BROADCAST_TAGS = [
   { tag: 'first_name', label: 'First name', sample: 'Alex' },
-  { tag: 'recipient_name', label: 'Full name', sample: 'Alex Rivera' },
+  { tag: 'full_name', label: 'Full name', sample: 'Alex Rivera' },
   { tag: 'org_name', label: 'Organization', sample: 'Community Club' },
 ];
 
@@ -24,8 +24,8 @@ Write your message here.
 const BLANK = {
   title: '', subject: '', body: DEFAULT_BODY, web_version: true,
   flyer: {
-    style: 'modern', paletteId: 'slate', colors: null, font: 'sans', scale: 'm',
-    eyebrow: '', tagline: '', note: '', showHost: false, imageToken: '',
+    style: 'classic', paletteId: 'slate', colors: null, font: 'sans', scale: 'm',
+    eyebrow: '', tagline: '', note: '', showHost: false, imageToken: '', imageCaption: '',
   },
 };
 

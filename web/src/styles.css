@@ -1,4 +1,4 @@
-/* SJC-Vite admin app design system */
+/* Grassroots Planner admin app design system */
 
 :root {
   --bg: #f4f5f8;
@@ -305,6 +305,28 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .login-sub { color: var(--muted); font-size: 13.5px; margin: 4px 0 22px; }
 .login-build { color: var(--muted); font-size: 11.5px; text-align: center; margin: 16px 0 0;
   font-variant-numeric: tabular-nums; }
+
+/* Rich-text description editor */
+.rt { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: #fff; }
+.rt-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 6px 8px; border-bottom: 1px solid var(--line); background: #fafafb; }
+.rt-btn { border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer;
+  min-width: 30px; height: 30px; padding: 0 8px; font-size: 14px; color: #26272b;
+  display: inline-flex; align-items: center; justify-content: center; font-family: inherit; }
+.rt-btn:hover { background: #f1f2f4; }
+.rt-btn-text { font-size: 12.5px; font-weight: 600; }
+.rt-select { height: 30px; border: 1px solid var(--line); border-radius: 6px; background: #fff;
+  font-size: 12.5px; padding: 0 4px; font-family: inherit; color: #26272b; cursor: pointer; }
+.rt-sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 3px; }
+.rt-editor { min-height: 130px; max-height: 340px; overflow-y: auto; padding: 12px 14px;
+  font-size: 15px; line-height: 1.6; outline: none; color: #26272b; }
+.rt-editor:empty:before { content: attr(data-placeholder); color: var(--muted); }
+.rt-ff-serif { font-family: Georgia, 'Times New Roman', serif; }
+.rt-ff-sans { font-family: 'Helvetica Neue', Arial, sans-serif; }
+.rt-ff-mono { font-family: 'Courier New', Courier, monospace; }
+.rt-fs-sm { font-size: 0.85em; }
+.rt-fs-lg { font-size: 1.25em; }
+.rt-fs-xl { font-size: 1.6em; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }

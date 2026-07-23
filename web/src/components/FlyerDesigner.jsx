@@ -79,7 +79,9 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
             {presets.styles.map((s) => (
               <button key={s.id} type="button"
                 className={`style-card ${flyer.style === s.id ? 'active' : ''}`}
-                onClick={() => set({ style: s.id })}>
+                onClick={() => set(s.id === 'patriotic'
+                  ? { style: s.id, paletteId: 'patriot', colors: null }
+                  : { style: s.id })}>
                 <div className="s-name">{s.label}</div>
                 <div className="s-desc">{s.description}</div>
               </button>
@@ -163,6 +165,13 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
             ) : null}
           </div>
         </Field>
+
+        {flyer.imageToken ? (
+          <Field label="Image caption" hint="Optional — a short line shown under the featured image.">
+            <input value={flyer.imageCaption || ''} maxLength={160} placeholder="e.g. Last year's rally"
+              onChange={(e) => set({ imageCaption: e.target.value })} />
+          </Field>
+        ) : null}
       </div>
 
       <div>

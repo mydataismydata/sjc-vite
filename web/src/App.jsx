@@ -37,7 +37,7 @@ function Layout({ children }) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="side-brand">SJC<span className="tick">•</span>Vite</div>
+        <div className="side-brand">Grassroots <span className="tick">Planner</span></div>
         <div className="side-org" title={org.name}>{org.name}</div>
         <nav className="side-nav">
           {NAV.map((item) => (

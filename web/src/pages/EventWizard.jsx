@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, formatDate, formatTime } from '../api.js';
+import { useAuth } from '../App.jsx';
 import { Field, Modal, Spinner, useToast, insertAtCursor } from '../ui.jsx';
 import FlyerDesigner from '../components/FlyerDesigner.jsx';
 import RecipientPicker from '../components/RecipientPicker.jsx';
+import RichText from '../components/RichText.jsx';
 import TagButtons from '../components/TagButtons.jsx';
 import VenuePicker from '../components/VenuePicker.jsx';
 
@@ -12,14 +14,14 @@ const STEPS = ['Event details', 'RSVP options', 'Invitation & flyer', 'Guests', 
 const BLANK = {
   title: '', description: '', host_name: '', venue_name: '', venue_address: '',
   venue_phone: '', venue_map_url: '',
-  date: '', start_time: '', end_time: '', timezone_note: '',
+  date: '', start_time: '', end_time: '',
   rsvp_mode: 'rsvp', rsvp_deadline: '', capacity: '', allow_plus_ones: true,
-  max_party_size: 5, show_guest_list: false, share_enabled: true,
+  max_party_size: 0, show_guest_list: false, share_enabled: true,
   email_subject: "You're invited: {{event_title}}",
   email_body: '',
   flyer: {
     style: 'classic', paletteId: 'champagne', colors: null, font: 'serif', scale: 'm',
-    eyebrow: "You're invited", tagline: '', note: '', showHost: true, imageToken: '',
+    eyebrow: "You're invited", tagline: '', note: '', showHost: true, imageToken: '', imageCaption: '',
   },
 };
 
@@ -33,6 +35,7 @@ export default function EventWizard() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { org } = useAuth();
   const editing = Boolean(id);
 
   const [eventId, setEventId] = useState(id ? Number(id) : null);
@@ -64,7 +67,16 @@ export default function EventWizard() {
       }).catch((err) => setError(err.message));
       refreshGuests(Number(id));
     } else {
-      setEv({ ...BLANK, email_body: DEFAULT_BODY });
+      // New event: host defaults to the org name, and start/end times to the
+      // org's configured defaults (Settings → Event defaults).
+      const base = { ...BLANK, host_name: org?.name || '', email_body: DEFAULT_BODY };
+      api.get('/api/settings').then((d) => {
+        setEv({
+          ...base,
+          start_time: d.settings.default_start_time || '',
+          end_time: d.settings.default_end_time || '',
+        });
+      }).catch(() => setEv(base));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -95,7 +107,7 @@ export default function EventWizard() {
     return {
       ...ev,
       capacity: ev.capacity === '' ? null : Number(ev.capacity),
-      max_party_size: Number(ev.max_party_size) || 5,
+      max_party_size: Number(ev.max_party_size) || 0,
     };
   }
 
@@ -202,8 +214,30 @@ export default function EventWizard() {
   const basics = {
     title: ev.title, host_name: ev.host_name, venue_name: ev.venue_name,
     venue_address: ev.venue_address, date: ev.date, start_time: ev.start_time,
-    end_time: ev.end_time, timezone_note: ev.timezone_note,
+    end_time: ev.end_time,
   };
+
+  // Fill event-level placeholders with real values for the review summary.
+  function resolvePlaceholders(text) {
+    const time = [formatTime(ev.start_time), formatTime(ev.end_time)].filter(Boolean).join(' – ');
+    const ctx = {
+      event_title: ev.title || '',
+      event_date: formatDate(ev.date) || 'Date to be announced',
+      event_time: time,
+      venue_name: ev.venue_name || '',
+      venue_address: ev.venue_address || '',
+      venue_phone: ev.venue_phone || '',
+      host_name: ev.host_name || org?.name || '',
+      org_name: org?.name || '',
+      rsvp_deadline: formatDate(ev.rsvp_deadline) || '',
+      first_name: 'there', full_name: 'there', recipient_name: 'there',
+      event_description: '', event_link: '', rsvp_link: '', accept_link: '', decline_link: '',
+    };
+    return String(text || '').replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, t) => {
+      const k = t.toLowerCase();
+      return Object.prototype.hasOwnProperty.call(ctx, k) ? String(ctx[k]) : '';
+    });
+  }
 
   return (
     <div className="page">
@@ -239,16 +273,10 @@ export default function EventWizard() {
                 <input value={ev.title} maxLength={200} placeholder="Summer Gala 2026"
                   onChange={(e) => patch({ title: e.target.value })} autoFocus />
               </Field>
-              <div className="field-row">
-                <Field label="Host" hint="Shown as “Hosted by …” on the flyer and emails.">
-                  <input value={ev.host_name} maxLength={200} placeholder="The Events Committee"
-                    onChange={(e) => patch({ host_name: e.target.value })} />
-                </Field>
-                <Field label="Timezone note" hint="Optional, e.g. “Pacific Time”.">
-                  <input value={ev.timezone_note} maxLength={60}
-                    onChange={(e) => patch({ timezone_note: e.target.value })} />
-                </Field>
-              </div>
+              <Field label="Host" hint="Defaults to your organization name. Shown as “Hosted by …” on the flyer and emails.">
+                <input value={ev.host_name} maxLength={200} placeholder="The Events Committee"
+                  onChange={(e) => patch({ host_name: e.target.value })} />
+              </Field>
               <div className="field-row3">
                 <Field label="Date">
                   <input type="date" value={ev.date} onChange={(e) => patch({ date: e.target.value })} />
@@ -266,10 +294,9 @@ export default function EventWizard() {
                   venue_phone: ev.venue_phone, venue_map_url: ev.venue_map_url,
                 }}
                 onChange={patch} />
-              <Field label="Description" hint="Shown on the public event page.">
-                <textarea value={ev.description} maxLength={5000} rows={4}
-                  placeholder="Tell guests what to expect…"
-                  onChange={(e) => patch({ description: e.target.value })} />
+              <Field label="Description" hint="Shown on the public event page. Use the toolbar for bold, italics, underline, fonts and sizes.">
+                <RichText value={ev.description} placeholder="Tell guests what to expect…"
+                  onChange={(html) => patch({ description: html })} />
               </Field>
             </div>
           ) : null}
@@ -312,6 +339,7 @@ export default function EventWizard() {
                     <Field label="Largest party size">
                       <select value={ev.max_party_size}
                         onChange={(e) => patch({ max_party_size: Number(e.target.value) })}>
+                        <option value={0}>Unlimited (no cap)</option>
                         {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </Field>
@@ -389,7 +417,7 @@ export default function EventWizard() {
           {step === 4 ? (
             <div className="card card-pad">
               <h2 className="card-title">Review & send</h2>
-              <div className="kv"><span className="k">Event</span><span><strong>{ev.title}</strong></span></div>
+              <div className="kv"><span className="k">Event</span><span><strong>{resolvePlaceholders(ev.title)}</strong></span></div>
               <div className="kv"><span className="k">When</span>
                 <span>{ev.date ? `${ev.date}${ev.start_time ? ` at ${ev.start_time}` : ''}` : <em>No date yet — required before sending</em>}</span></div>
               <div className="kv"><span className="k">Where</span>
@@ -400,7 +428,7 @@ export default function EventWizard() {
                   : 'Open event, no RSVP'}</span></div>
               <div className="kv"><span className="k">Guests</span>
                 <span>{guests.length} on the list{pendingSelection ? ` + ${pendingSelection} to be added` : ''}</span></div>
-              <div className="kv"><span className="k">Subject</span><span>{ev.email_subject}</span></div>
+              <div className="kv"><span className="k">Subject</span><span>{resolvePlaceholders(ev.email_subject)}</span></div>
 
               {!ev.date ? <div className="banner banner-warn mt">Add a date (step 1) before sending invitations.</div> : null}
 

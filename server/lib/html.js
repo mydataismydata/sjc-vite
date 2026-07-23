@@ -69,6 +69,15 @@ const PUBLIC_CSS = `
   .pub-footer a { color: #9a9ea6; }
   .pub-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .pub-chip { background: #f1f2f4; border-radius: 999px; padding: 5px 14px; font-size: 13.5px; }
+  .rt-content { line-height: 1.6; }
+  .rt-content p { margin: 0 0 10px; }
+  .rt-content p:last-child { margin-bottom: 0; }
+  .rt-ff-serif { font-family: Georgia, 'Times New Roman', serif; }
+  .rt-ff-sans { font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .rt-ff-mono { font-family: 'Courier New', Courier, monospace; }
+  .rt-fs-sm { font-size: 0.85em; }
+  .rt-fs-lg { font-size: 1.25em; }
+  .rt-fs-xl { font-size: 1.6em; }
   @media (max-width: 480px) {
     .pub-card { padding: 20px 16px; }
     .pub-actions .pub-btn { flex: 1 1 100%; }

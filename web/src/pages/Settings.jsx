@@ -243,12 +243,16 @@ export default function Settings() {
   const isAdmin = user.role === 'admin';
   const [data, setData] = useState(null);
   const [orgName, setOrgName] = useState(org.name);
+  const [defStart, setDefStart] = useState('');
+  const [defEnd, setDefEnd] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function load() {
     const d = await api.get('/api/settings');
     setData(d);
     setOrgName(d.org.name);
+    setDefStart(d.settings.default_start_time || '');
+    setDefEnd(d.settings.default_end_time || '');
   }
   useEffect(() => { load().catch((e) => toast(e.message, 'bad')); }, []);
 
@@ -287,6 +291,35 @@ export default function Settings() {
               finally { setBusy(false); }
             }}>Save</button>
         ) : null}
+      </div>
+
+      <div className="card card-pad">
+        <h2 className="card-title">Event defaults</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Prefilled when you create a new event. You can still change the times on any event.
+        </p>
+        <div className="field-row">
+          <Field label="Default start time">
+            <input type="time" value={defStart} disabled={!isAdmin}
+              onChange={(e) => setDefStart(e.target.value)} />
+          </Field>
+          <Field label="Default end time">
+            <input type="time" value={defEnd} disabled={!isAdmin}
+              onChange={(e) => setDefEnd(e.target.value)} />
+          </Field>
+        </div>
+        {isAdmin ? (
+          <button className="btn btn-primary" disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await api.put('/api/settings', { default_start_time: defStart, default_end_time: defEnd });
+                toast('Event defaults saved');
+                await load();
+              } catch (err) { toast(err.message, 'bad'); }
+              finally { setBusy(false); }
+            }}>Save</button>
+        ) : <p className="small muted">Only administrators can change event defaults.</p>}
       </div>
 
       <SendingCard data={data} isAdmin={isAdmin} onSaved={load} />

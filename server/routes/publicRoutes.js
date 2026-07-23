@@ -15,6 +15,7 @@ import { esc, textToHtml, publicPage } from '../lib/html.js';
 import { renderFlyer, flyerColors, mixWithWhite } from '../lib/flyer.js';
 import { parseFlyer, publicUrl, verifyContactToken } from '../lib/sending.js';
 import { buildBroadcastTagContext, renderTags } from '../lib/mergeTags.js';
+import { sanitizeRichText, looksLikeHtml } from '../lib/sanitizeHtml.js';
 import { formatWhen, formatDate, firstName } from '../lib/format.js';
 import { buildIcs, googleCalendarUrl } from '../lib/ics.js';
 import { randomToken } from '../lib/tokens.js';
@@ -116,8 +117,13 @@ function detailsCard(event) {
     event.rsvp_mode === 'rsvp' && event.rsvp_deadline ? { k: 'RSVP by', v: formatDate(event.rsvp_deadline) } : null,
   ].filter((r) => r && (r.v || r.html));
   if (!rows.length && !event.description) return '';
+  // Descriptions are stored as sanitized rich-text HTML; older ones are plain
+  // text, rendered with textToHtml so their line breaks survive.
+  const descHtml = event.description
+    ? (looksLikeHtml(event.description) ? sanitizeRichText(event.description) : textToHtml(event.description))
+    : '';
   return `<div class="pub-card">
-    ${event.description ? `<div style="font-size:15.5px; margin-bottom:${rows.length ? '16px' : '0'};">${textToHtml(event.description)}</div>` : ''}
+    ${descHtml ? `<div class="rt-content" style="font-size:15.5px; margin-bottom:${rows.length ? '16px' : '0'};">${descHtml}</div>` : ''}
     ${rows.map((r) => `<div class="pub-detail"><div class="k">${esc(r.k)}</div><div>${r.html || esc(r.v)}</div></div>`).join('')}
   </div>`;
 }
@@ -143,10 +149,23 @@ function guestListCard(db, event) {
   return `<div class="pub-card"><h2>Who's coming (${Number(total.n)})</h2><div class="pub-chips">${chips}</div></div>`;
 }
 
+// max_party_size of 0 means unlimited — offer a number input rather than a
+// dropdown of every value.
+function partyCap(event) {
+  if (!event.allow_plus_ones) return 1;
+  const cap = Number(event.max_party_size) || 0;
+  return cap > 0 ? cap : 99;
+}
+
 function partySelect(event, current = 1) {
   if (!event.allow_plus_ones) return '';
-  const max = Math.max(1, event.max_party_size || 5);
-  const options = Array.from({ length: max }, (_, i) => i + 1)
+  const cap = Number(event.max_party_size) || 0;
+  if (!cap) {
+    return `<div class="pub-field"><label for="party_size">How many in your party?</label>
+      <input id="party_size" name="party_size" type="number" min="1" max="99" value="${Math.max(1, current)}"
+        style="max-width:150px;"></div>`;
+  }
+  const options = Array.from({ length: cap }, (_, i) => i + 1)
     .map((n) => `<option value="${n}" ${n === current ? 'selected' : ''}>${n === 1 ? 'Just me' : `${n} people (me + ${n - 1})`}</option>`)
     .join('');
   return `<div class="pub-field"><label for="party_size">How many in your party?</label>
@@ -252,7 +271,7 @@ publicRouter.post('/e/:slug/rsvp', (req, res) => {
   const note = String(req.body.note || '').trim().slice(0, 500) || null;
   let party = Number(req.body.party_size || 1);
   if (!Number.isInteger(party) || party < 1) party = 1;
-  party = Math.min(party, event.allow_plus_ones ? Math.max(1, event.max_party_size || 5) : 1);
+  party = Math.min(party, partyCap(event));
 
   if (!name || !isValidEmail(email)) {
     return res.status(400).send(publicPage({
@@ -418,7 +437,7 @@ publicRouter.post('/i/:token', (req, res) => {
 
   let party = Number(req.body.party_size || invite.party_size);
   if (!Number.isInteger(party) || party < 1) party = invite.party_size;
-  party = Math.min(party, event.allow_plus_ones ? Math.max(1, event.max_party_size || 5) : 1);
+  party = Math.min(party, partyCap(event));
   const note = String(req.body.note ?? invite.note ?? '').trim().slice(0, 500) || null;
 
   if (invite.response === 'yes') {

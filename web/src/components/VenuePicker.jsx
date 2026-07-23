@@ -92,9 +92,6 @@ export default function VenuePicker({ value, onChange }) {
           {saving ? 'Saving…' : '＋ Save these details as a reusable venue'}
         </button>
       ) : null}
-      {trimmedName && alreadySaved ? (
-        <p className="small muted" style={{ margin: '2px 0 0' }}>✓ This venue is in your library.</p>
-      ) : null}
     </div>
   );
 }
