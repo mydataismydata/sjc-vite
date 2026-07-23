@@ -1,6 +1,6 @@
-# User guide
+# Grassroots Planner — user guide
 
-Everything the app does, in the order you'll meet it.
+Everything Grassroots Planner does, in the order you'll meet it.
 
 ## Organizations & signing in
 

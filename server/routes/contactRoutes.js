@@ -76,6 +76,8 @@ contactRouter.post('/contacts/:id/unsubscribe', wrap(async (req, res) => {
     `UPDATE contacts SET unsubscribed_at = ${on ? "datetime('now')" : 'NULL'} WHERE id = ?`
   ).run(id);
   if (Number(info.changes) === 0) throw new ApiError(404, 'Contact not found.');
+  // Unsubscribing also drops them from every group, so group sends skip them.
+  if (on) req.db.prepare('DELETE FROM group_members WHERE contact_id = ?').run(id);
   res.json({ ok: true });
 }));
 

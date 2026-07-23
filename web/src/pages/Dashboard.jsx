@@ -2,13 +2,43 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, timeAgo } from '../api.js';
 import { useAuth } from '../App.jsx';
-import { Spinner, Empty, ResponseBadge, StatusBadge } from '../ui.jsx';
+import { Spinner, Empty, ResponseBadge, Badge } from '../ui.jsx';
 
 function QuotaValue({ quota }) {
   if (!quota) return '—';
   if (!quota.configured) return 'Simulation';
   if (quota.error) return 'Unavailable';
   return `${quota.remaining ?? '—'}`;
+}
+
+// Compact stat tile matching the event page's tiles, for the dashboard rows.
+function MiniTile({ label, value, tone }) {
+  return (
+    <div className={`mini-tile${tone ? ` tone-${tone}` : ''}`}>
+      <div className="mt-value">{value}</div>
+      <div className="mt-label">{label}</div>
+    </div>
+  );
+}
+
+function EventMiniTiles({ ev }) {
+  const s = ev.stats;
+  if (ev.rsvp_mode === 'open') {
+    return (
+      <div className="mini-tiles">
+        <MiniTile label="Invited" value={s.invited} />
+        <MiniTile label="Notified" value={s.emails_sent} tone="ok" />
+      </div>
+    );
+  }
+  return (
+    <div className="mini-tiles">
+      <MiniTile label="Invited" value={s.invited} />
+      <MiniTile label="Coming" value={s.guests_attending} tone="ok" />
+      <MiniTile label="Declined" value={s.declined} tone="bad" />
+      <MiniTile label="Waiting" value={s.awaiting} tone="warn" />
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -23,7 +53,7 @@ export default function Dashboard() {
   if (error) return <div className="page"><div className="banner banner-bad">{error}</div></div>;
   if (!data) return <div className="page"><Spinner /></div>;
 
-  const { counts, upcoming, recent, quota, month_emails } = data;
+  const { counts, upcoming, recent, broadcasts = [], quota, month_emails } = data;
   const firstName = (user.name || '').split(' ')[0];
   const gettingStarted = counts.events === 0;
 
@@ -81,31 +111,63 @@ export default function Dashboard() {
         </div>
       ) : null}
 
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-pad">
+          <div className="spread">
+            <h2 className="card-title" style={{ margin: 0 }}>Upcoming events</h2>
+            <Link className="small" to="/events">All events →</Link>
+          </div>
+        </div>
+        {upcoming.length === 0 ? (
+          <Empty icon="🗓" title="Nothing scheduled">Events with future dates appear here.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <tbody>
+                {upcoming.map((ev) => (
+                  <tr key={ev.id}>
+                    <td>
+                      <Link to={`/events/${ev.id}`} className="t-main">{ev.title}</Link>
+                      {ev.status === 'draft' ? <Badge tone="amber">Draft</Badge> : null}
+                      <div className="t-sub">{ev.when}{ev.venue_name ? ` · ${ev.venue_name}` : ''}</div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <EventMiniTiles ev={ev} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="grid2" style={{ alignItems: 'start' }}>
         <div className="card">
           <div className="card-pad">
             <div className="spread">
-              <h2 className="card-title" style={{ margin: 0 }}>Upcoming events</h2>
-              <Link className="small" to="/events">All events →</Link>
+              <h2 className="card-title" style={{ margin: 0 }}>Broadcasts</h2>
+              <Link className="small" to="/broadcasts">All broadcasts →</Link>
             </div>
           </div>
-          {upcoming.length === 0 ? (
-            <Empty icon="🗓" title="Nothing scheduled">Events with future dates appear here.</Empty>
+          {broadcasts.length === 0 ? (
+            <Empty icon="📣" title="No broadcasts yet">Email blasts to your contacts show up here.</Empty>
           ) : (
             <div className="table-wrap">
               <table className="table">
                 <tbody>
-                  {upcoming.map((ev) => (
-                    <tr key={ev.id}>
+                  {broadcasts.map((b) => (
+                    <tr key={b.id}>
                       <td>
-                        <Link to={`/events/${ev.id}`} className="t-main">{ev.title}</Link>
-                        <div className="t-sub">{ev.when}{ev.venue_name ? ` · ${ev.venue_name}` : ''}</div>
+                        <Link to={`/broadcasts/${b.id}`} className="t-main">{b.title}</Link>
+                        <div className="t-sub">
+                          {b.status === 'sent'
+                            ? `${b.stats.recipients} recipient${b.stats.recipients === 1 ? '' : 's'}${b.sent_at ? ` · ${timeAgo(b.sent_at)}` : ''}`
+                            : 'Draft'}
+                        </div>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <StatusBadge status={ev.status} />
-                        <div className="t-sub" style={{ marginTop: 3 }}>
-                          {ev.stats.accepted} yes · {ev.stats.declined} no · {ev.stats.awaiting} waiting
-                        </div>
+                        <Badge tone={b.status === 'sent' ? 'green' : 'amber'}>{b.status === 'sent' ? 'Sent' : 'Draft'}</Badge>
                       </td>
                     </tr>
                   ))}

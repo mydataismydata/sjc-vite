@@ -524,6 +524,29 @@ let guests = [];
   check('ISOLATION: B cannot fetch A\'s broadcast', bIso.status === 404);
 }
 
+// --- recipient preview + unsubscribe side-effects --------------------------
+{
+  const c1 = (await A.api('POST', '/api/contacts', { name: 'Unsub One', email: 'unsub1@guest.test' })).data.contact.id;
+  const c2 = (await A.api('POST', '/api/contacts', { name: 'Unsub Two', email: 'unsub2@guest.test' })).data.contact.id;
+  const gid = (await A.api('POST', '/api/groups', { name: 'Preview Group', contact_ids: [c1, c2] })).data.group.id;
+
+  const p1 = await A.api('POST', '/api/recipients/preview', { group_ids: [gid] });
+  check('recipient preview counts emailable group members', p1.data?.recipients === 2, JSON.stringify(p1.data));
+
+  const contactsBefore = (await A.api('GET', '/api/dashboard')).data?.counts?.contacts;
+  await A.api('POST', `/api/contacts/${c1}/unsubscribe`, { on: true });
+
+  const gAfter = await A.api('GET', `/api/groups/${gid}`);
+  check('unsubscribe removes contact from group', !gAfter.data.group.member_ids.includes(c1));
+  const p2 = await A.api('POST', '/api/recipients/preview', { group_ids: [gid] });
+  check('recipient preview excludes unsubscribed', p2.data?.recipients === 1, JSON.stringify(p2.data));
+
+  const dashB = await A.api('GET', '/api/dashboard');
+  check('dashboard contacts count drops after unsubscribe', dashB.data?.counts?.contacts === contactsBefore - 1,
+    `${contactsBefore} -> ${dashB.data?.counts?.contacts}`);
+  check('dashboard exposes broadcasts list', Array.isArray(dashB.data?.broadcasts));
+}
+
 // ---------------------------------------------------------------------------
 console.log('');
 if (failures.length === 0) {

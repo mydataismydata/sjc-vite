@@ -2,7 +2,7 @@
 
 ## What this app needs (the short answer)
 
-SJC-Vite is a **long-running Node.js application**. It needs:
+Grassroots Planner is a **long-running Node.js application**. It needs:
 
 | Requirement | Details |
 | --- | --- |
@@ -92,7 +92,7 @@ As root, create `/etc/systemd/system/sjc-vite.service`:
 
 ```ini
 [Unit]
-Description=SJC-Vite event invitations
+Description=Grassroots Planner event invitations
 After=network.target
 
 [Service]

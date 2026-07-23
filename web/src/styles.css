@@ -109,6 +109,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .stat.tone-bad .value { color: var(--bad); }
 .stat.tone-warn .value { color: var(--warn); }
 
+/* Compact stat tiles for dashboard event rows */
+.mini-tiles { display: inline-flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.mini-tile { min-width: 58px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); text-align: center; }
+.mini-tile .mt-value { font-size: 17px; font-weight: 750; line-height: 1.1; letter-spacing: -0.01em; }
+.mini-tile .mt-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin-top: 2px; }
+.mini-tile.tone-ok .mt-value { color: var(--ok); }
+.mini-tile.tone-bad .mt-value { color: var(--bad); }
+.mini-tile.tone-warn .mt-value { color: var(--warn); }
+
 /* --- buttons --------------------------------------------------------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;

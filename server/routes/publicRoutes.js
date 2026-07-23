@@ -501,6 +501,7 @@ publicRouter.post('/u/:token', (req, res) => {
   const existing = db.prepare('SELECT id FROM contacts WHERE email = ?').get(email);
   if (existing) {
     db.prepare(`UPDATE contacts SET unsubscribed_at = datetime('now') WHERE id = ?`).run(existing.id);
+    db.prepare('DELETE FROM group_members WHERE contact_id = ?').run(existing.id);
   } else {
     db.prepare(`INSERT INTO contacts (name, email, unsubscribed_at) VALUES (?, ?, datetime('now'))`)
       .run(invite.guest_name || email, email);
@@ -577,6 +578,7 @@ publicRouter.post('/bu/:token', (req, res) => {
   const email = (contact?.email || '').toLowerCase();
   if (!email) return notFoundPage(res);
   db.prepare(`UPDATE contacts SET unsubscribed_at = datetime('now') WHERE email = ?`).run(email);
+  db.prepare('DELETE FROM group_members WHERE contact_id IN (SELECT id FROM contacts WHERE email = ?)').run(email);
   res.send(publicPage({
     title: 'Unsubscribed',
     bodyHtml: `<div class="pub-card"><h2>You're unsubscribed</h2>

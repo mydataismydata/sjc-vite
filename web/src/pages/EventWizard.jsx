@@ -426,8 +426,8 @@ export default function EventWizard() {
                 <span>{ev.rsvp_mode === 'rsvp'
                   ? `Collecting responses${ev.rsvp_deadline ? ` until ${ev.rsvp_deadline}` : ''}${ev.capacity ? ` · capacity ${ev.capacity}` : ''}`
                   : 'Open event, no RSVP'}</span></div>
-              <div className="kv"><span className="k">Guests</span>
-                <span>{guests.length} on the list{pendingSelection ? ` + ${pendingSelection} to be added` : ''}</span></div>
+              <div className="kv"><span className="k">Recipients</span>
+                <span><strong>{sendable}</strong> will be emailed{guests.length ? ` · ${guests.length} on the guest list` : ''}{pendingSelection ? ` · ${pendingSelection} selection${pendingSelection === 1 ? '' : 's'} to add first` : ''}</span></div>
               <div className="kv"><span className="k">Subject</span><span>{resolvePlaceholders(ev.email_subject)}</span></div>
 
               {!ev.date ? <div className="banner banner-warn mt">Add a date (step 1) before sending invitations.</div> : null}
@@ -487,8 +487,8 @@ export default function EventWizard() {
             </>
           }>
           <p style={{ marginTop: 0 }}>
-            Invitation emails will go to every guest on the list who hasn't been emailed yet
-            {pendingSelection ? <> (including the {pendingSelection} you just selected)</> : null}.
+            Invitation emails will be queued for the <strong>{sendable}</strong> guest{sendable === 1 ? '' : 's'} who
+            have an email address and haven't been contacted yet{pendingSelection ? ', plus anyone you just selected' : ''}.
             The event page goes live at the same time.
           </p>
         </Modal>

@@ -1,4 +1,4 @@
-# SJC-Vite
+# Grassroots Planner
 
 A self-hosted replacement for eVite: events, designed invitations, RSVPs,
 contact lists, and email delivery — with **no ads, no tracking, and no selling

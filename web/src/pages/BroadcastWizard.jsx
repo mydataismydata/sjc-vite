@@ -46,6 +46,7 @@ export default function BroadcastWizard() {
   const [emailPreview, setEmailPreview] = useState(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [testTo, setTestTo] = useState('');
+  const [recipientCount, setRecipientCount] = useState(0);
   const bodyRef = useRef(null);
 
   useEffect(() => {
@@ -164,6 +165,25 @@ export default function BroadcastWizard() {
     return ids.size + recipients.group_ids.length + recipients.new_contacts.filter((n) => n.name.trim()).length;
   }, [recipients]);
 
+  // Actual number of emails this selection would send (groups expanded, deduped,
+  // no-email + unsubscribed removed). null while loading.
+  useEffect(() => {
+    const sel = {
+      contact_ids: recipients.contact_ids, group_ids: recipients.group_ids,
+      new_contacts: recipients.new_contacts.filter((n) => n.name.trim()),
+    };
+    if (!sel.contact_ids.length && !sel.group_ids.length && !sel.new_contacts.length) {
+      setRecipientCount(0);
+      return;
+    }
+    let cancelled = false;
+    setRecipientCount(null);
+    api.post('/api/recipients/preview', sel)
+      .then((d) => { if (!cancelled) setRecipientCount(d.recipients); })
+      .catch(() => { if (!cancelled) setRecipientCount(null); });
+    return () => { cancelled = true; };
+  }, [recipients]);
+
   if (!b) return <div className="page">{error ? <div className="banner banner-bad">{error}</div> : <Spinner />}</div>;
 
   return (
@@ -262,12 +282,20 @@ export default function BroadcastWizard() {
               <div className="kv"><span className="k">Web version</span>
                 <span>{b.web_version ? 'On — “view in browser” link included' : 'Off — email only'}</span></div>
               <div className="kv"><span className="k">Recipients</span>
-                <span>{pendingSelection ? `${pendingSelection} selected (people + groups)` : <em>None selected yet</em>}</span></div>
+                <span>{recipientCount == null ? '…'
+                  : recipientCount === 0 ? <em>None selected yet</em>
+                    : <><strong>{recipientCount}</strong> recipient{recipientCount === 1 ? '' : 's'} will be emailed</>}</span></div>
 
-              {pendingSelection === 0 ? <div className="banner banner-warn mt">Pick recipients (step 3) before sending.</div> : null}
+              {recipientCount === 0 ? (
+                <div className="banner banner-warn mt">
+                  {pendingSelection === 0
+                    ? 'Pick recipients (step 3) before sending.'
+                    : 'None of the selected people have an email address (or they’ve unsubscribed).'}
+                </div>
+              ) : null}
 
               <div className="row mt">
-                <button className="btn btn-primary btn-lg" disabled={saving || pendingSelection === 0}
+                <button className="btn btn-primary btn-lg" disabled={saving || !recipientCount}
                   onClick={() => setConfirmSend(true)}>
                   Send broadcast
                 </button>
@@ -313,7 +341,8 @@ export default function BroadcastWizard() {
             </>
           }>
           <p style={{ marginTop: 0 }}>
-            One email will be queued for each selected recipient who has an email address and hasn't unsubscribed.
+            {recipientCount} email{recipientCount === 1 ? '' : 's'} will be queued — one per recipient with an
+            email address who hasn't unsubscribed.
             {b.web_version ? ' The web version goes live at the same time.' : ''}
           </p>
         </Modal>

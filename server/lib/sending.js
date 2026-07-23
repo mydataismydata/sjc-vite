@@ -210,6 +210,18 @@ export function resolveRecipients(db, { contactIds = [], groupIds = [], newConta
   return out;
 }
 
+// Dry-run count of how many emails a { contact_ids, group_ids, new_contacts }
+// selection would actually send: unique addresses, minus no-email and
+// unsubscribed. Used to show recipient counts (not group counts) before send.
+export function previewRecipients(db, { contactIds = [], groupIds = [], newContacts = [] }) {
+  const resolved = resolveRecipients(db, { contactIds, groupIds, newContacts, saveNew: false });
+  let recipients = 0;
+  for (const r of resolved) {
+    if (r.email && !isUnsubscribed(db, r.email)) recipients++;
+  }
+  return { recipients, total: resolved.length };
+}
+
 export function renderBroadcastEmailFor({ org, broadcast, recipient, subjectTemplate, bodyTemplate, viewUrl, unsubUrl }) {
   const name = recipient?.name || '';
   const email = (recipient?.email || '').toLowerCase();

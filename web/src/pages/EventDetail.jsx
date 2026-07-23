@@ -198,8 +198,8 @@ export default function EventDetail() {
       <div className="stat-grid">
         <div className="stat"><div className="label">Invited</div><div className="value">{stats.invited}</div>
           <div className="sub">{stats.emails_sent} emailed · {stats.emails_queued} queued</div></div>
-        <div className="stat tone-ok"><div className="label">Accepted</div><div className="value">{stats.accepted}</div>
-          <div className="sub">{stats.guests_attending} attending in total</div></div>
+        <div className="stat tone-ok"><div className="label">Attending</div><div className="value">{stats.guests_attending}</div>
+          <div className="sub">{stats.accepted} accepted RSVP{stats.accepted === 1 ? '' : 's'}</div></div>
         <div className="stat tone-bad"><div className="label">Declined</div><div className="value">{stats.declined}</div>
           <div className="sub">&nbsp;</div></div>
         <div className="stat tone-warn"><div className="label">Awaiting reply</div><div className="value">{stats.awaiting}</div>

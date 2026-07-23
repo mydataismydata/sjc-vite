@@ -194,7 +194,12 @@ export default function Contacts() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Contacts</h1>
-          <p className="page-sub">{contacts.length} people · shared across all of your events</p>
+          <p className="page-sub">
+            {contacts.filter((c) => !c.unsubscribed_at).length} people
+            {contacts.some((c) => c.unsubscribed_at)
+              ? ` · ${contacts.filter((c) => c.unsubscribed_at).length} unsubscribed`
+              : ''} · shared across all of your events
+          </p>
         </div>
         <div className="head-actions">
           <a className="btn" href="/api/export/contacts.csv">Export CSV</a>

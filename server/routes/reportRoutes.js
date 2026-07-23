@@ -4,7 +4,7 @@ import { eventStats, broadcastStats, monthEmailCount } from '../lib/stats.js';
 import { getQuota, orgApiKey } from '../lib/email.js';
 import { toCsv } from '../lib/csv.js';
 import { getSetting } from '../lib/db.js';
-import { getInvitesForEvent, inviteEmail, inviteName, publicUrl } from '../lib/sending.js';
+import { getInvitesForEvent, inviteEmail, inviteName, publicUrl, previewRecipients } from '../lib/sending.js';
 import { formatWhen } from '../lib/format.js';
 
 export const reportRouter = Router();
@@ -19,14 +19,17 @@ reportRouter.get('/dashboard', wrap(async (req, res) => {
     events: Number(db.prepare('SELECT COUNT(*) AS n FROM events').get().n),
     upcoming: Number(db.prepare("SELECT COUNT(*) AS n FROM events WHERE status = 'published' AND date >= ?").get(today()).n),
     drafts: Number(db.prepare("SELECT COUNT(*) AS n FROM events WHERE status = 'draft'").get().n),
-    contacts: Number(db.prepare('SELECT COUNT(*) AS n FROM contacts').get().n),
+    // Unsubscribed contacts are excluded from the reported total.
+    contacts: Number(db.prepare('SELECT COUNT(*) AS n FROM contacts WHERE unsubscribed_at IS NULL').get().n),
     groups: Number(db.prepare('SELECT COUNT(*) AS n FROM groups').get().n),
+    broadcasts: Number(db.prepare('SELECT COUNT(*) AS n FROM broadcasts').get().n),
   };
   const upcoming = db.prepare(
     "SELECT * FROM events WHERE date >= ? AND status != 'cancelled' ORDER BY date ASC LIMIT 6"
   ).all(today()).map((ev) => ({
     id: ev.id, title: ev.title, date: ev.date, start_time: ev.start_time,
     venue_name: ev.venue_name, status: ev.status, when: formatWhen(ev),
+    rsvp_mode: ev.rsvp_mode,
     stats: eventStats(db, ev.id),
   }));
   const recent = db.prepare(`
@@ -42,8 +45,25 @@ reportRouter.get('/dashboard', wrap(async (req, res) => {
     name: r.contact_name || r.guest_name || 'Guest', response: r.response,
     party_size: r.party_size, responded_at: r.responded_at, source: r.source,
   }));
+  const broadcasts = db.prepare(
+    'SELECT id, title, slug, status, web_version, sent_at, updated_at FROM broadcasts ORDER BY COALESCE(sent_at, updated_at) DESC, id DESC LIMIT 5'
+  ).all().map((b) => ({
+    id: b.id, title: b.title, slug: b.slug, status: b.status,
+    web_version: Boolean(b.web_version), sent_at: b.sent_at, updated_at: b.updated_at,
+    stats: broadcastStats(db, b.id),
+  }));
   const quota = await getQuota(orgApiKey(db));
-  res.json({ counts, upcoming, recent, month_emails: monthEmailCount(db), quota });
+  res.json({ counts, upcoming, recent, broadcasts, month_emails: monthEmailCount(db), quota });
+}));
+
+// Dry-run: how many emails a recipient selection would actually send (unique
+// addresses minus no-email/unsubscribed). Powers the wizards' recipient counts.
+reportRouter.post('/recipients/preview', wrap(async (req, res) => {
+  res.json(previewRecipients(req.db, {
+    contactIds: v.intArray(req.body.contact_ids, { label: 'contact_ids' }),
+    groupIds: v.intArray(req.body.group_ids, { label: 'group_ids' }),
+    newContacts: Array.isArray(req.body.new_contacts) ? req.body.new_contacts : [],
+  }));
 }));
 
 reportRouter.get('/quota', wrap(async (req, res) => {
