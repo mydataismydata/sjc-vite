@@ -2,7 +2,7 @@
 
 ## What this app needs (the short answer)
 
-Grassroots Planner is a **long-running Node.js application**. It needs:
+Soapbox is a **long-running Node.js application**. It needs:
 
 | Requirement | Details |
 | --- | --- |
@@ -92,7 +92,7 @@ As root, create `/etc/systemd/system/sjc-vite.service`:
 
 ```ini
 [Unit]
-Description=Grassroots Planner event invitations
+Description=Soapbox event invitations
 After=network.target
 
 [Service]

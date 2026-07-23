@@ -1,6 +1,6 @@
-# Grassroots Planner — user guide
+# Soapbox — user guide
 
-Everything Grassroots Planner does, in the order you'll meet it.
+Everything Soapbox does, in the order you'll meet it.
 
 ## Organizations & signing in
 

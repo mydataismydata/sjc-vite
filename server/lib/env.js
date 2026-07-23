@@ -64,5 +64,5 @@ export const config = {
   smtp2goApiKey: process.env.SMTP2GO_API_KEY || '',
   emailsPerMinute: Math.max(1, Number(process.env.EMAILS_PER_MINUTE || 60)),
   trustProxy: process.env.TRUST_PROXY === '1',
-  appName: process.env.APP_NAME || 'Grassroots Planner',
+  appName: process.env.APP_NAME || 'Soapbox',
 };

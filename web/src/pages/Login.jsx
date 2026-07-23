@@ -32,7 +32,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <h1 className="login-brand">Grassroots <span className="tick">Planner</span></h1>
+        <h1 className="login-brand">Soap<span className="tick">box</span></h1>
         <p className="login-sub">Events, invitations & RSVPs</p>
         <Field label="Email">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
