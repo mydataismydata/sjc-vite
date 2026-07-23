@@ -94,6 +94,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .card-pad { padding: 18px 20px; }
 .card-title { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
 .card + .card { margin-top: 16px; }
+.draft-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px 20px;
+  flex-wrap: wrap; margin-bottom: 16px; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px; margin-bottom: 18px; }

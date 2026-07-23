@@ -165,7 +165,10 @@ export default function EventDetail() {
         </div>
         <div className="head-actions">
           <a className="btn" href={ev.share_url} target="_blank" rel="noopener noreferrer">View page ↗</a>
-          <Link className="btn" to={`/events/${ev.id}/edit`}>Edit</Link>
+          {/* While it's still a draft the prominent "Continue creating" button
+              below is the way back into the wizard; Edit appears once sent. */}
+          {ev.status !== 'draft'
+            ? <Link className="btn" to={`/events/${ev.id}/edit`}>Edit</Link> : null}
           <button className="btn" onClick={() => act(async () => {
             const d = await api.post(`/api/events/${ev.id}/duplicate`);
             navigate(`/events/${d.event.id}/edit`);
@@ -175,6 +178,18 @@ export default function EventDetail() {
             : <button className="btn btn-danger" onClick={() => setConfirm({ type: 'delete' })}>Delete</button>}
         </div>
       </div>
+
+      {ev.status === 'draft' ? (
+        <div className="card card-pad draft-cta">
+          <div>
+            <strong style={{ fontSize: 15 }}>This event isn’t finished yet</strong>
+            <p className="small muted" style={{ margin: '2px 0 0' }}>
+              It’s saved as a draft. Pick up where you left off to finish the details, design, and guest list, then send.
+            </p>
+          </div>
+          <Link className="btn btn-primary btn-lg" to={`/events/${ev.id}/edit`}>Continue creating →</Link>
+        </div>
+      ) : null}
 
       {ev.status === 'cancelled' ? (
         <div className="banner banner-bad">This event is cancelled. Guests see a cancellation notice on the event page.</div>
