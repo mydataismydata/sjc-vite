@@ -156,6 +156,24 @@ function captionHtml(flyer, colors, scale) {
     margin-top:7px; text-align:center; font-style:italic;">${esc(flyer.imageCaption)}</div>`;
 }
 
+// SVG "L x y" commands tracing a wavy line from A to B. The amplitude tapers to
+// zero at both ends (via sin(t·π)) so a flag's free edge ripples in the middle
+// but still meets its corners cleanly.
+function wavyPath(ax, ay, bx, by, { waves = 2, amp = 13, steps = 26 } = {}) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  let out = '';
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const off = Math.sin(t * waves * 2 * Math.PI) * amp * Math.sin(t * Math.PI);
+    out += `L${(ax + dx * t + nx * off).toFixed(1)} ${(ay + dy * t + ny * off).toFixed(1)} `;
+  }
+  return out.trim();
+}
+
 function renderClassic({ event, flyer, colors, font, scale, imageUrl, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
@@ -191,15 +209,37 @@ function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine
   const c = colors;
   const w = whenParts(event);
   const onAccent = contrastOn(c.accent);
-  const starRows = Array.from({ length: 4 }, () => '★★★★★').join('<br>');
-  const starField = `<div style="position:absolute; top:0; left:0; z-index:0;
-    background:${c.accent2}; color:#ffffff; padding:${px(10 * scale)} ${px(15 * scale)};
-    font-size:${px(13 * scale)}; line-height:1.4; letter-spacing:3px;
-    border-bottom-right-radius:16px;">${starRows}</div>`;
-  const stripes = `<div style="position:absolute; bottom:0; right:0; z-index:0;
-    width:${px(180 * scale)}; height:${px(84 * scale)};
-    background:repeating-linear-gradient(180deg, ${c.accent} 0 ${px(11 * scale)}, #ffffff ${px(11 * scale)} ${px(22 * scale)});
-    border-top-left-radius:16px; opacity:0.92;"></div>`;
+  // Two corner "flags": a blue star field cut into the top-left corner and
+  // red/white stripes into the bottom-right, each with a rippling free edge so
+  // they read as waving cloth rather than flat triangles. Sized as a percentage
+  // of the flyer width so they hug the corners on any screen and leave the
+  // centre clear for the text.
+  const tl = `M0 0 L240 0 ${wavyPath(240, 0, 0, 150)} Z`;
+  const br = `M0 150 L240 150 L240 0 ${wavyPath(240, 0, 0, 150)} Z`;
+  const flagTL = `<svg viewBox="0 0 240 150" preserveAspectRatio="none"
+    style="position:absolute; top:0; left:0; z-index:0; width:36%; height:auto; display:block;">
+    <defs>
+      <clipPath id="pfTL"><path d="${tl}"/></clipPath>
+      <pattern id="pfStars" width="30" height="27" patternUnits="userSpaceOnUse" patternTransform="rotate(-7)">
+        <text x="3" y="18" font-size="14" fill="#ffffff" fill-opacity="0.9">&#9733;</text>
+      </pattern>
+    </defs>
+    <path d="${tl}" fill="${c.accent2}"/>
+    <rect width="240" height="150" fill="url(#pfStars)" clip-path="url(#pfTL)"/>
+    <path d="${tl}" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  </svg>`;
+  const flagBR = `<svg viewBox="0 0 240 150" preserveAspectRatio="none"
+    style="position:absolute; bottom:0; right:0; z-index:0; width:36%; height:auto; display:block;">
+    <defs>
+      <clipPath id="pfBR"><path d="${br}"/></clipPath>
+      <pattern id="pfStripes" width="12" height="22" patternUnits="userSpaceOnUse">
+        <rect width="12" height="11" fill="${c.accent}"/>
+        <rect y="11" width="12" height="11" fill="#ffffff"/>
+      </pattern>
+    </defs>
+    <rect width="240" height="150" fill="url(#pfStripes)" clip-path="url(#pfBR)"/>
+    <path d="${br}" fill="none" stroke="${c.accent}" stroke-opacity="0.5" stroke-width="1.5"/>
+  </svg>`;
   const img = imageUrl
     ? `<div style="margin:22px auto 0; max-width:${px(360 * scale)};">
          <img src="${esc(imageUrl)}" alt="" style="display:block; width:100%; height:${px(200 * scale)};
@@ -214,10 +254,10 @@ function renderPatriotic({ event, flyer, colors, font, scale, imageUrl, hostLine
       ${hostLine ? `<div style="margin-top:16px; font-size:${px(12.5 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${c.accent};">${esc(hostLine)}</div>` : ''}`;
   return `
   <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.ink}; font-family:${font.body};
-       border-top:6px solid ${c.accent}; padding:${px(40 * scale)} 30px ${px(44 * scale)};">
-    ${starField}
-    ${stripes}
-    <div style="position:relative; z-index:1; text-align:center; padding-top:${px(12 * scale)};">
+       border:6px solid ${c.accent}; padding:${px(46 * scale)} ${px(44 * scale)} ${px(52 * scale)};">
+    ${flagTL}
+    ${flagBR}
+    <div style="position:relative; z-index:1; text-align:center; padding-top:${px(10 * scale)};">
       ${flyer.eyebrow ? `<div style="display:inline-block; background:${c.accent}; color:${onAccent};
         padding:7px 18px; border-radius:4px; font-size:${px(12.5 * scale)}; font-weight:800;
         letter-spacing:0.14em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
