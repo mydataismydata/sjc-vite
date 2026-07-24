@@ -25,7 +25,7 @@ const BLANK = {
   title: '', subject: '', body: DEFAULT_BODY, web_version: true,
   flyer: {
     style: 'blue', font: 'sans', scale: 'm',
-    eyebrow: '', tagline: '', note: '', showHost: false, showAddress: false,
+    eyebrow: '', tagline: '', note: '', contact: '', showHost: false, showAddress: false,
     imageColumns: 1, imageTokens: [], imageCaptions: [], imageToken: '', imageCaption: '',
   },
 };

@@ -207,6 +207,7 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
 
   const upd = await A.api('PUT', `/api/events/${eventId}`, {
     flyer: { style: 'blue', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing',
+      contact: 'Questions? Call Jane', showAddress: true,
       imageColumns: 3, imageTokens: ['imgAAAAAA', 'imgBBBBBB', 'imgCCCCCC'], imageCaptions: ['Ada Speaker', 'Grace Speaker', 'Alan Speaker'] },
     email_subject: "You're invited: {{event_title}}",
     email_body: 'Hi {{first_name}},\n\nJoin us at {{venue_name}} on {{event_date}}.\n\nRSVP: {{rsvp_link}}',
@@ -216,6 +217,7 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
   check('flyer stores 3 image columns', uflyer.imageColumns === 3 && Array.isArray(uflyer.imageTokens) && uflyer.imageTokens.length === 3);
   check('flyer image tokens + captions stored', uflyer.imageTokens?.[2] === 'imgCCCCCC' && uflyer.imageCaptions?.[1] === 'Grace Speaker');
   check('flyer mirrors first image for legacy readers', uflyer.imageToken === 'imgAAAAAA' && uflyer.imageCaption === 'Ada Speaker');
+  check('flyer stores contact + showAddress', uflyer.contact === 'Questions? Call Jane' && uflyer.showAddress === true);
 
   // Rich-text description is sanitized: safe tags kept, scripts + junk dropped.
   const rich = await A.api('PUT', `/api/events/${eventId}`, {
@@ -234,6 +236,8 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
   check('landing renders all three featured images',
     draftHtml.includes('/files/imgAAAAAA') && draftHtml.includes('/files/imgBBBBBB') && draftHtml.includes('/files/imgCCCCCC'));
   check('landing renders featured-image captions', draftHtml.includes('Grace Speaker'));
+  check('landing renders RSVP Requested banner + contact',
+    /RSVP Requested/i.test(draftHtml) && draftHtml.includes('Questions? Call Jane'));
 }
 
 // --- guests + sending ------------------------------------------------------

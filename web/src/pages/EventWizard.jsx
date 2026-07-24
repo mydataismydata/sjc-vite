@@ -21,7 +21,7 @@ const BLANK = {
   email_body: '',
   flyer: {
     style: 'blue', font: 'sans', scale: 'm',
-    eyebrow: "You're invited", tagline: '', note: '', showHost: true, showAddress: false,
+    eyebrow: "You're invited", tagline: '', note: '', contact: '', showHost: true, showAddress: false,
     imageColumns: 1, imageTokens: [], imageCaptions: [], imageToken: '', imageCaption: '',
   },
 };
@@ -215,7 +215,7 @@ export default function EventWizard() {
   const basics = {
     title: ev.title, host_name: ev.host_name, venue_name: ev.venue_name,
     venue_address: ev.venue_address, date: ev.date, start_time: ev.start_time,
-    end_time: ev.end_time,
+    end_time: ev.end_time, rsvp_mode: ev.rsvp_mode,
   };
 
   // Fill event-level placeholders with real values for the review summary.

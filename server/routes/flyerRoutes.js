@@ -22,6 +22,7 @@ flyerRouter.post('/flyer/preview', wrap(async (req, res) => {
     start_time: String(e.start_time || '').slice(0, 5),
     end_time: String(e.end_time || '').slice(0, 5),
     timezone_note: String(e.timezone_note || '').slice(0, 60),
+    rsvp_mode: e.rsvp_mode === 'rsvp' ? 'rsvp' : (e.rsvp_mode === 'open' ? 'open' : ''),
   };
   const flyer = req.body.flyer || {};
   const imageUrls = flyerImageUrls(req.org.slug, flyer);

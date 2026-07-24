@@ -47,6 +47,7 @@ export const DEFAULT_FLYER = {
   eyebrow: "You're invited",
   tagline: '',
   note: '',
+  contact: '', // optional "who to contact" line in the details block
   showHost: true,
   showAddress: false, // include the venue address in the details block
   imageColumns: 1, // 1–3: how many featured images / columns to show
@@ -68,6 +69,7 @@ export function normalizeFlyer(raw) {
   f.eyebrow = String(f.eyebrow ?? '').slice(0, 60);
   f.tagline = String(f.tagline ?? '').slice(0, 140);
   f.note = String(f.note ?? '').slice(0, 200);
+  f.contact = String(f.contact ?? '').slice(0, 120);
   f.showHost = Boolean(f.showHost);
   f.showAddress = Boolean(f.showAddress);
   // Featured images: up to three, shown in 1/2/3 centred columns. Fold a legacy
@@ -259,6 +261,21 @@ function starRow(count, { size, color, gap = 0.4 }) {
   return `<span style="color:${color}; font-size:${px(size)}; letter-spacing:${px(size * gap)};">${s}</span>`;
 }
 
+// Shrink a one-line field when it's long enough to overflow, so long titles /
+// taglines stay on one line instead of spilling past the edge. `budget` ≈ how
+// many characters fit at `base` px in the available width.
+function fitSize(text, base, budget) {
+  const len = String(text || '').length;
+  return len <= budget ? base : Math.max(base * 0.5, base * (budget / len));
+}
+
+// "RSVP Requested" pill, shown when the event collects RSVPs.
+function rsvpBadge(scale, { bg, ink, marginTop = 0 }) {
+  return `<div style="margin-top:${px(marginTop * scale)};"><span style="display:inline-block; background:${bg}; color:${ink};
+    font-weight:800; font-size:${px(12 * scale)}; letter-spacing:0.12em; text-transform:uppercase;
+    padding:${px(6 * scale)} ${px(16 * scale)}; border-radius:999px;">RSVP Requested</span></div>`;
+}
+
 // A centred banner for the tagline. `folded` has 3-D end tails tucking behind
 // the face; `straight` is a flat bar with flag-notched ends.
 function foldedRibbon(text, { bandColor, ink, dark, scale, font }) {
@@ -270,8 +287,8 @@ function foldedRibbon(text, { bandColor, ink, dark, scale, font }) {
     width:${px(tw)}; height:${px(h)}; background:${dark}; z-index:1;
     clip-path:polygon(${side === 'left' ? '0 0, 100% 0, 100% 100%, 0 100%, 24% 50%' : '0 0, 100% 0, 76% 50%, 100% 100%, 0 100%'});"></span>`;
   const band = `<span style="position:relative; z-index:2; display:inline-block; background:${bandColor}; color:${ink};
-    font-family:${font.heading}; font-weight:800; font-size:${px(14.5 * scale)}; letter-spacing:0.08em;
-    text-transform:uppercase; white-space:nowrap; padding:${px(9 * scale)} ${px(26 * scale)};">${esc(text)}</span>`;
+    font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(text, 14.5 * scale, 30))}; letter-spacing:0.08em;
+    text-transform:uppercase; text-align:center; white-space:nowrap; padding:${px(9 * scale)} ${px(26 * scale)};">${esc(text)}</span>`;
   return `<span style="position:relative; display:inline-block; margin-top:${px(20 * scale)};">${tail('left')}${tail('right')}${band}</span>`;
 }
 
@@ -279,8 +296,8 @@ function straightRibbon(text, { bandColor, ink, scale, font }) {
   if (!text) return '';
   const notch = px(14 * scale);
   return `<span style="display:inline-block; margin-top:${px(20 * scale)}; background:${bandColor}; color:${ink};
-    font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.08em;
-    text-transform:uppercase; white-space:nowrap; padding:${px(10 * scale)} ${px(34 * scale)};
+    font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(text, 15 * scale, 30))}; letter-spacing:0.08em;
+    text-transform:uppercase; text-align:center; white-space:nowrap; padding:${px(10 * scale)} ${px(34 * scale)};
     clip-path:polygon(0 0, 100% 0, calc(100% - ${notch}) 50%, 100% 100%, 0 100%, ${notch} 50%);">${esc(text)}</span>`;
 }
 
@@ -294,6 +311,7 @@ function metaStacked({ event, flyer, hostLine, scale, ink, sub }) {
   if (event.venue_name) parts.push(`<div style="font-size:${px(14.5 * scale)}; margin-top:10px; font-weight:700; color:${ink};">${esc(event.venue_name)}</div>`);
   if (flyer.showAddress && event.venue_address) parts.push(`<div style="font-size:${px(13 * scale)}; margin-top:2px; color:${sub};">${esc(event.venue_address)}</div>`);
   if (hostLine) parts.push(`<div style="font-size:${px(11.5 * scale)}; margin-top:14px; text-transform:uppercase; letter-spacing:0.16em; color:${sub};">${esc(hostLine)}</div>`);
+  if (flyer.contact) parts.push(`<div style="font-size:${px(12.5 * scale)}; margin-top:8px; color:${sub};">${esc(flyer.contact)}</div>`);
   if (!parts.length) return '';
   return `<div style="margin-top:${px(22 * scale)};">${parts.join('')}</div>`;
 }
@@ -319,28 +337,31 @@ function renderBlue({ event, flyer, colors, font, scale, images, hostLine, hideE
     style: 'position:absolute; top:-6px; left:-12px; width:106%; height:98px; z-index:0;',
   });
   const img = featuredImages(images, { scale, colors: c, frame: imageFrame('#ffffff', '#ffffff'), captionColor: 'rgba(255,255,255,0.78)', marginTop: 22 });
+  const rsvp = !hideEventMeta && event.rsvp_mode === 'rsvp' ? rsvpBadge(scale, { bg: c.red, ink: '#ffffff', marginTop: 24 }) : '';
   const meta = hideEventMeta ? '' : `
-    <div style="margin-top:${px(30 * scale)}; display:flex; justify-content:center; align-items:center; gap:${px(20 * scale)};">
+    <div style="margin-top:${px(24 * scale)}; display:flex; justify-content:center; align-items:center; gap:${px(20 * scale)};">
       ${w.date ? `<div style="font-size:${px(16 * scale)}; font-weight:700; letter-spacing:0.03em;">${esc(w.date)}</div>` : ''}
       ${w.date && w.time ? `<div style="width:1px; height:${px(24 * scale)}; background:rgba(255,255,255,0.5);"></div>` : ''}
       ${w.time ? `<div style="font-size:${px(16 * scale)}; font-weight:700;">${esc(w.time)}</div>` : ''}
     </div>
     ${w.date || w.time ? `<div style="height:3px; width:58%; background:${c.red}; margin:${px(14 * scale)} auto 0; border-radius:2px;"></div>` : ''}
-    ${vb.venue ? `<div style="font-size:${px(14.5 * scale)}; margin-top:${px(14 * scale)}; letter-spacing:0.03em;">${esc(vb.venue)}</div>` : ''}
-    ${hostLine ? `<div style="font-size:${px(11.5 * scale)}; margin-top:${px(12 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:rgba(255,255,255,0.75);">${esc(hostLine)}</div>` : ''}`;
+    ${vb.venue ? `<div style="font-size:${px(15 * scale)}; font-weight:700; margin-top:${px(14 * scale)}; letter-spacing:0.03em;">${esc(vb.venue)}</div>` : ''}
+    ${hostLine ? `<div style="font-size:${px(11.5 * scale)}; margin-top:${px(12 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:rgba(255,255,255,0.75);">${esc(hostLine)}</div>` : ''}
+    ${flyer.contact ? `<div style="font-size:${px(12.5 * scale)}; margin-top:${px(8 * scale)}; color:rgba(255,255,255,0.8);">${esc(flyer.contact)}</div>` : ''}`;
   const inner = `
     <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.ink};
          font-family:${font.body}; padding:${px(108 * scale)} ${px(34 * scale)} ${px(30 * scale)};">
       ${flag}
       <div style="position:relative; z-index:1; text-align:center;">
         ${flyer.eyebrow ? `<div style="color:${c.red}; font-family:${font.heading}; font-weight:800;
-          font-size:${px(26 * scale)}; letter-spacing:0.04em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
-        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(54 * scale)}; line-height:1.02;
+          font-size:${px(fitSize(flyer.eyebrow, 26 * scale, 26))}; letter-spacing:0.04em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(event.title, 54 * scale, 15))}; line-height:1.02;
           text-transform:uppercase; margin-top:${px(6 * scale)};">${esc(event.title || 'Untitled event')}</div>
         ${foldedRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, dark: c.ribbonDark, scale, font })}
         ${img}
+        ${rsvp}
         ${meta}
-        ${flyer.note ? `<div style="margin-top:${px(16 * scale)}; font-size:${px(13 * scale)}; color:rgba(255,255,255,0.8);">${esc(flyer.note)}</div>` : ''}
+        ${flyer.note ? `<div style="margin-top:${px(16 * scale)}; font-size:${px(fitSize(flyer.note, 13 * scale, 60))}; color:rgba(255,255,255,0.8);">${esc(flyer.note)}</div>` : ''}
       </div>
     </div>`;
   return `<div style="background:#ffffff; padding:9px;">
@@ -355,7 +376,8 @@ function renderWhite({ event, flyer, colors, font, scale, images, hostLine, hide
     vw: 360, vh: 70, stripes: 4, red: c.red, white: c.bg, amp: 7, period: 150, phase: 0, id: 'wht',
     style: 'position:absolute; top:-10px; left:-12px; width:106%; z-index:0;',
   });
-  const img = featuredImages(images, { scale, colors: c, frame: imageFrame(c.navy, c.navy), marginTop: 20 });
+  const img = featuredImages(images, { scale, colors: c, frame: imageFrame(c.navy, '#ffffff'), marginTop: 20 });
+  const rsvp = !hideEventMeta && event.rsvp_mode === 'rsvp' ? rsvpBadge(scale, { bg: c.navy, ink: '#ffffff', marginTop: 20 }) : '';
   const meta = hideEventMeta ? '' : metaStacked({ event, flyer, hostLine, scale, ink: c.navy, sub: tint(c.navy, 0.7) });
   // Full-width navy line + star closes off the bottom in place of a flag; the
   // negative side margins let it bleed to the card's edges.
@@ -365,14 +387,15 @@ function renderWhite({ event, flyer, colors, font, scale, images, hostLine, hide
          font-family:${font.body}; padding:${px(70 * scale)} ${px(36 * scale)} ${px(34 * scale)}; text-align:center;">
       ${topStripes}
       <div style="position:relative; z-index:1;">
-        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:800; font-size:${px(30 * scale)};
+        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(flyer.eyebrow, 30 * scale, 22))};
           text-transform:uppercase; letter-spacing:0.02em;">${esc(flyer.eyebrow)}</div>` : ''}
-        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(48 * scale)}; line-height:1.02;
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(event.title, 48 * scale, 17))}; line-height:1.02;
           text-transform:uppercase; color:${c.red}; margin-top:${px(6 * scale)};">${esc(event.title || 'Untitled event')}</div>
         ${foldedRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, dark: c.ribbonDark, scale, font })}
         ${img}
+        ${rsvp}
         ${flyer.note ? `<div style="margin-top:${px(18 * scale)}; font-family:${font.heading}; font-weight:800;
-          font-size:${px(15 * scale)}; letter-spacing:0.04em; text-transform:uppercase; color:${c.navy};">${esc(flyer.note)}</div>${lineStarDivider({ color: c.red, bg: c.bg, scale, marginTop: 14 })}` : ''}
+          font-size:${px(fitSize(flyer.note, 15 * scale, 40))}; letter-spacing:0.04em; text-transform:uppercase; color:${c.navy};">${esc(flyer.note)}</div>${lineStarDivider({ color: c.red, bg: c.bg, scale, marginTop: 14 })}` : ''}
         ${meta}
         ${bottomDivider}
       </div>
@@ -383,10 +406,11 @@ function renderRed({ event, flyer, colors, font, scale, images, hostLine, hideEv
   const c = colors;
   const corner = (pos) => `<span style="position:absolute; ${pos} color:#ffffff; background:${c.bg}; font-size:22px; line-height:1; padding:0 2px;">&#9733;</span>`;
   const eyebrow = flyer.eyebrow ? `<div style="display:flex; align-items:center; justify-content:center; gap:${px(12 * scale)};
-      color:#fff; font-family:${font.heading}; font-weight:700; font-size:${px(17 * scale)};
+      color:#fff; font-family:${font.heading}; font-weight:700; font-size:${px(fitSize(flyer.eyebrow, 17 * scale, 30))};
       letter-spacing:0.14em; text-transform:uppercase;">
       <span style="font-size:${px(12 * scale)};">&#9733;</span>${esc(flyer.eyebrow)}<span style="font-size:${px(12 * scale)};">&#9733;</span></div>` : '';
   const img = featuredImages(images, { scale, colors: c, frame: imageFrame('#ffffff', '#ffffff'), captionColor: 'rgba(255,255,255,0.85)', marginTop: 18 });
+  const rsvp = !hideEventMeta && event.rsvp_mode === 'rsvp' ? rsvpBadge(scale, { bg: c.navy, ink: '#ffffff', marginTop: 20 }) : '';
   const rule = `<div style="height:2px; width:70%; background:rgba(255,255,255,0.85); margin:${px(20 * scale)} auto;"></div>`;
   const meta = hideEventMeta ? '' : metaStacked({ event, flyer, hostLine, scale, ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' });
   return `
@@ -395,11 +419,12 @@ function renderRed({ event, flyer, colors, font, scale, images, hostLine, hideEv
         ${corner('top:-11px; left:-11px;')}${corner('top:-11px; right:-11px;')}
         ${corner('bottom:-11px; left:-11px;')}${corner('bottom:-11px; right:-11px;')}
         ${eyebrow}
-        <div style="font-family:${font.heading}; font-weight:800; color:#ffffff; font-size:${px(50 * scale)};
+        <div style="font-family:${font.heading}; font-weight:800; color:#ffffff; font-size:${px(fitSize(event.title, 50 * scale, 16))};
           line-height:1.03; text-transform:uppercase; margin-top:${px(10 * scale)};">${esc(event.title || 'Untitled event')}</div>
         <div style="display:flex; justify-content:center;">${straightRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, scale, font })}</div>
         ${img}
-        ${flyer.note ? `${rule}<div style="color:#fff; font-family:${font.heading}; font-weight:800; font-size:${px(17 * scale)};
+        ${rsvp}
+        ${flyer.note ? `${rule}<div style="color:#fff; font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(flyer.note, 17 * scale, 34))};
           letter-spacing:0.03em; text-transform:uppercase; line-height:1.3;">${esc(flyer.note)}</div>` : ''}
         ${meta ? `${rule}${meta}` : (flyer.note ? rule : '')}
       </div>
@@ -416,15 +441,17 @@ function renderRetro({ event, flyer, colors, font, scale, images, hostLine, hide
     <span style="font-family:${font.heading}; font-weight:800; font-size:${px(18 * scale)}; letter-spacing:0.08em;
       text-transform:uppercase; color:${c.red};">${esc(flyer.eyebrow)}</span>
     ${starRow(3, { size: 15 * scale, color: c.red, gap: 0.22 })}</div>` : '';
-  const img = hasImg ? featuredImages(images, { scale, colors: c, frame: imageFrame(c.parchment, c.parchment), captionColor: tint(c.parchment, 0.9), marginTop: 18 }) : '';
+  const img = hasImg ? featuredImages(images, { scale, colors: c, frame: imageFrame(c.parchment, '#ffffff'), captionColor: tint(c.parchment, 0.9), marginTop: 18 }) : '';
+  const rsvp = !hideEventMeta && event.rsvp_mode === 'rsvp' ? rsvpBadge(scale, { bg: c.red, ink: c.parchment, marginTop: 14 }) : '';
   const topArea = `
     <div style="background:${c.navy}; color:${c.parchment}; text-align:center;
          padding:${px((hasImg ? 30 : 34) * scale)} ${px(30 * scale)} ${px((hasImg ? 28 : 38) * scale)};">
       ${presents}
       ${img}
       ${eyebrow}
-      <div style="font-family:${font.heading}; font-weight:800; font-size:${px(72 * scale)}; line-height:0.98;
+      <div style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(event.title, 72 * scale, 11))}; line-height:0.98;
         text-transform:uppercase; margin-top:${px(8 * scale)}; color:${c.parchment};">${esc(event.title || 'Untitled event')}</div>
+      ${rsvp}
     </div>`;
   // A navy line + star divider, like the White template, sits between the
   // tagline and the footnote.
@@ -436,11 +463,12 @@ function renderRetro({ event, flyer, colors, font, scale, images, hostLine, hide
   if (flyer.note) stripes.push({ tone: 'red', html: `<div style="font-family:${font.body}; font-size:${px(15 * scale)}; color:${c.parchment}; line-height:1.3;">${esc(flyer.note)}</div>` });
   if (!hideEventMeta) {
     const vb = venueTimeBits(event, flyer);
-    const bits = [vb.date, vb.time, vb.venue].filter(Boolean);
-    if (bits.length) {
-      const line = bits.map((b, i) => `<span style="color:${i % 2 ? c.red : c.navy};">${esc(b)}</span>`).join(`<span style="color:${c.navy}; font-weight:800;"> // </span>`);
-      stripes.push({ tone: 'parch', html: `<div style="font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.02em; text-transform:uppercase;">${line}</div>` });
-    }
+    const dt = [vb.date, vb.time].filter(Boolean).map((b, i) => `<span style="color:${i % 2 ? c.red : c.navy};">${esc(b)}</span>`).join(`<span style="color:${c.navy}; font-weight:800;"> // </span>`);
+    const lines = [];
+    if (dt) lines.push(`<div style="font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.02em; text-transform:uppercase;">${dt}</div>`);
+    if (vb.venue) lines.push(`<div style="font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.02em; text-transform:uppercase; color:${c.navy}; margin-top:${px(5 * scale)};">${esc(vb.venue)}</div>`);
+    if (flyer.contact) lines.push(`<div style="font-family:${font.body}; font-size:${px(13 * scale)}; color:${c.navy}; margin-top:${px(4 * scale)};">${esc(flyer.contact)}</div>`);
+    if (lines.length) stripes.push({ tone: 'parch', html: lines.join('') });
   }
   const stripeHtml = stripes.map((s) => `<div style="background:${s.tone === 'red' ? c.red : c.parchment}; text-align:center;
     padding:${px(18 * scale)} ${px(30 * scale)};">${s.html}</div>`).join('');
@@ -449,43 +477,48 @@ function renderRetro({ event, flyer, colors, font, scale, images, hostLine, hide
 
 function renderLandscape({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
-  // A wide band of faint stars running in from the left edge toward the flag.
-  const starField = (id, style) => `<svg viewBox="0 0 300 70" xmlns="http://www.w3.org/2000/svg" style="${style}">
-    <defs><pattern id="${id}" width="26" height="22" patternUnits="userSpaceOnUse">
-      <text x="3" y="16" font-size="13" fill="#c9cede">&#9733;</text></pattern></defs>
-    <rect width="300" height="70" fill="url(#${id})"/></svg>`;
-  // Both flags on the right; the star bands reach across to them.
+  // Faint stars clustered in the corners opposite the flags — small enough to
+  // stay clear of the centred text.
+  const starField = (id, style) => `<svg viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg" style="${style}">
+    <defs><pattern id="${id}" width="20" height="17" patternUnits="userSpaceOnUse">
+      <text x="3" y="13" font-size="11" fill="#ccd1df">&#9733;</text></pattern></defs>
+    <rect width="120" height="90" fill="url(#${id})"/></svg>`;
+  // Flags in opposite corners: top-right and bottom-left.
   const flagTR = wavyStripeFlag({
     vw: 200, vh: 150, stripes: 7, red: c.red, white: '#ffffff', amp: 8, period: 130, phase: 0.5,
     canton: true, cantonColor: c.navy, id: 'lstr',
     style: 'position:absolute; top:-38px; right:-38px; width:26%; transform:rotate(12deg); z-index:0;',
   });
-  const flagBR = wavyStripeFlag({
+  const flagBL = wavyStripeFlag({
     vw: 200, vh: 150, stripes: 7, red: c.red, white: '#ffffff', amp: 8, period: 130, phase: 0.9,
-    canton: true, cantonColor: c.navy, id: 'lsbr',
-    style: 'position:absolute; bottom:-38px; right:-38px; width:26%; transform:rotate(-12deg); z-index:0;',
+    canton: true, cantonColor: c.navy, id: 'lsbl',
+    style: 'position:absolute; bottom:-38px; left:-38px; width:26%; transform:rotate(12deg); z-index:0;',
   });
   const img = featuredImages(images, { scale, colors: c, frame: imageFrame(c.navy, '#ffffff'), marginTop: 16 });
   const tagline = flyer.tagline ? `<div style="display:flex; align-items:center; justify-content:center; gap:${px(14 * scale)}; margin-top:${px(12 * scale)};">
-    <div style="height:2px; width:${px(44 * scale)}; background:${c.red};"></div>
-    <span style="font-family:${font.heading}; font-weight:800; font-size:${px(18 * scale)}; letter-spacing:0.2em; color:${c.navy};">${esc(flyer.tagline)}</span>
-    <div style="height:2px; width:${px(44 * scale)}; background:${c.red};"></div></div>` : '';
+    <div style="height:2px; width:${px(44 * scale)}; background:${c.red}; flex:none;"></div>
+    <span style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(flyer.tagline, 18 * scale, 24))}; letter-spacing:0.2em; color:${c.navy}; white-space:nowrap;">${esc(flyer.tagline)}</span>
+    <div style="height:2px; width:${px(44 * scale)}; background:${c.red}; flex:none;"></div></div>` : '';
+  const rsvp = !hideEventMeta && event.rsvp_mode === 'rsvp' ? rsvpBadge(scale, { bg: c.navy, ink: '#ffffff', marginTop: 12 }) : '';
   const vb = hideEventMeta ? null : venueTimeBits(event, flyer);
-  const metaBits = vb ? [vb.date, vb.time, vb.venue].filter(Boolean).join(' · ') : '';
+  const dt = vb ? [vb.date, vb.time].filter(Boolean).join(' · ') : '';
   const meta = hideEventMeta ? '' : `
-    ${metaBits ? `<div style="margin-top:${px(12 * scale)}; font-size:${px(13.5 * scale)}; color:${tint(c.navy, 0.8)};">${esc(metaBits)}</div>` : ''}
-    ${hostLine ? `<div style="margin-top:${px(6 * scale)}; font-size:${px(11 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${tint(c.navy, 0.7)};">${esc(hostLine)}</div>` : ''}`;
+    ${dt ? `<div style="margin-top:${px(12 * scale)}; font-size:${px(14 * scale)}; font-weight:600; color:${tint(c.navy, 0.85)};">${esc(dt)}</div>` : ''}
+    ${vb && vb.venue ? `<div style="margin-top:${px(4 * scale)}; font-size:${px(14 * scale)}; font-weight:700; color:${c.navy};">${esc(vb.venue)}</div>` : ''}
+    ${hostLine ? `<div style="margin-top:${px(6 * scale)}; font-size:${px(11 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${tint(c.navy, 0.7)};">${esc(hostLine)}</div>` : ''}
+    ${flyer.contact ? `<div style="margin-top:${px(4 * scale)}; font-size:${px(12 * scale)}; color:${tint(c.navy, 0.75)};">${esc(flyer.contact)}</div>` : ''}`;
   return `
     <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.navy};
-         font-family:${font.body}; padding:${px(42 * scale)} ${px(64 * scale)}; text-align:center;">
-      ${starField('lsftl', 'position:absolute; top:14px; left:16px; width:62%; z-index:0;')}
-      ${starField('lsfbl', 'position:absolute; bottom:14px; left:16px; width:62%; z-index:0;')}
-      ${flagTR}${flagBR}
+         font-family:${font.body}; padding:${px(40 * scale)} ${px(90 * scale)}; text-align:center;">
+      ${starField('lsftl', 'position:absolute; top:12px; left:12px; width:24%; z-index:0;')}
+      ${starField('lsfbr', 'position:absolute; bottom:12px; right:12px; width:24%; z-index:0;')}
+      ${flagTR}${flagBL}
       <div style="position:relative; z-index:1;">
         <div style="margin-bottom:${px(6 * scale)};">${starRow(1, { size: 13 * scale, color: c.red })} ${starRow(1, { size: 15 * scale, color: c.navy })} ${starRow(1, { size: 13 * scale, color: c.red })}</div>
-        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:700; font-size:${px(22 * scale)}; letter-spacing:0.35em; text-transform:uppercase; color:${c.navy};">${esc(flyer.eyebrow)}</div>` : ''}
-        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(50 * scale)}; line-height:1.02; text-transform:uppercase; margin-top:${px(6 * scale)}; color:${c.navy};">${esc(event.title || 'Untitled event')}</div>
+        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:700; font-size:${px(fitSize(flyer.eyebrow, 22 * scale, 20))}; letter-spacing:0.35em; text-transform:uppercase; color:${c.navy};">${esc(flyer.eyebrow)}</div>` : ''}
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(fitSize(event.title, 50 * scale, 16))}; line-height:1.02; text-transform:uppercase; margin-top:${px(6 * scale)}; color:${c.navy};">${esc(event.title || 'Untitled event')}</div>
         ${tagline}
+        ${rsvp}
         ${img}
         ${meta}
       </div>

@@ -162,6 +162,10 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
           <input value={flyer.note} maxLength={200} placeholder="Rain or shine · Free parking on 5th"
             onChange={(e) => set({ note: e.target.value })} />
         </Field>
+        <Field label="Contact" hint="Who to reach with questions — shown in the details (optional).">
+          <input value={flyer.contact || ''} maxLength={120} placeholder="Questions? Jane · (555) 100-2000"
+            onChange={(e) => set({ contact: e.target.value })} />
+        </Field>
 
         {mode === 'event' ? (
           <>
