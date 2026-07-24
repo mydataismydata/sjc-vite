@@ -21,7 +21,7 @@ const BLANK = {
   email_body: '',
   flyer: {
     style: 'blue', font: 'sans', scale: 'm',
-    eyebrow: "You're invited", tagline: '', note: '', showHost: true,
+    eyebrow: "You're invited", tagline: '', note: '', showHost: true, showAddress: false,
     imageColumns: 1, imageTokens: [], imageCaptions: [], imageToken: '', imageCaption: '',
   },
 };

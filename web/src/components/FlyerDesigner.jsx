@@ -164,12 +164,20 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
         </Field>
 
         {mode === 'event' ? (
-          <label className="checkbox">
-            <input type="checkbox" checked={flyer.showHost}
-              onChange={(e) => set({ showHost: e.target.checked })} />
-            <span><span className="cb-label">Show host line</span>
-              <div className="cb-sub">Displays “Hosted by {eventBasics.host_name || '…'}” on the flyer.</div></span>
-          </label>
+          <>
+            <label className="checkbox">
+              <input type="checkbox" checked={flyer.showHost}
+                onChange={(e) => set({ showHost: e.target.checked })} />
+              <span><span className="cb-label">Show host line</span>
+                <div className="cb-sub">Displays “Hosted by {eventBasics.host_name || '…'}” on the flyer.</div></span>
+            </label>
+            <label className="checkbox">
+              <input type="checkbox" checked={!!flyer.showAddress}
+                onChange={(e) => set({ showAddress: e.target.checked })} />
+              <span><span className="cb-label">Show venue address</span>
+                <div className="cb-sub">The venue name and time always show; turn this on to add the street address.</div></span>
+            </label>
+          </>
         ) : null}
 
         <Field label="Featured images"
