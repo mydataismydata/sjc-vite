@@ -206,13 +206,13 @@ const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10)
   check('create event', r.status === 201 && eventId > 0 && /^[a-z0-9]{10}$/.test(eventSlug || ''));
 
   const upd = await A.api('PUT', `/api/events/${eventId}`, {
-    flyer: { style: 'patriotic', paletteId: 'patriot', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing',
+    flyer: { style: 'blue', font: 'sans', scale: 'l', eyebrow: 'Save the date', tagline: 'Dinner & dancing',
       imageColumns: 3, imageTokens: ['imgAAAAAA', 'imgBBBBBB', 'imgCCCCCC'], imageCaptions: ['Ada Speaker', 'Grace Speaker', 'Alan Speaker'] },
     email_subject: "You're invited: {{event_title}}",
     email_body: 'Hi {{first_name}},\n\nJoin us at {{venue_name}} on {{event_date}}.\n\nRSVP: {{rsvp_link}}',
   });
   const uflyer = upd.data?.event?.flyer || {};
-  check('update event + flyer', upd.status === 200 && uflyer.style === 'patriotic');
+  check('update event + flyer', upd.status === 200 && uflyer.style === 'blue');
   check('flyer stores 3 image columns', uflyer.imageColumns === 3 && Array.isArray(uflyer.imageTokens) && uflyer.imageTokens.length === 3);
   check('flyer image tokens + captions stored', uflyer.imageTokens?.[2] === 'imgCCCCCC' && uflyer.imageCaptions?.[1] === 'Grace Speaker');
   check('flyer mirrors first image for legacy readers', uflyer.imageToken === 'imgAAAAAA' && uflyer.imageCaption === 'Ada Speaker');
@@ -343,7 +343,7 @@ let guests = [];
 
   const fp = await A.raw('POST', '/api/flyer/preview', {
     body: { event: { title: 'Preview Party', date: future },
-      flyer: { style: 'classic', paletteId: 'ocean', imageColumns: 2, imageTokens: ['prevIMGone', 'prevIMGtwo'], imageCaptions: ['One', 'Two'] } },
+      flyer: { style: 'white', imageColumns: 2, imageTokens: ['prevIMGone', 'prevIMGtwo'], imageCaptions: ['One', 'Two'] } },
   });
   const fpHtml = await fp.text();
   check('flyer preview renders', fp.status === 200 && fpHtml.includes('Preview Party'));
@@ -461,7 +461,7 @@ let guests = [];
     subject: 'Our endorsements for {{org_name}}',
     body: 'Hi {{first_name}},\n\nHere are our picks for the primary.\n\n— {{org_name}}',
     web_version: true,
-    flyer: { style: 'classic', paletteId: 'slate', eyebrow: 'Announcement' },
+    flyer: { style: 'red', eyebrow: 'Announcement' },
   });
   const bId = cr.data?.broadcast?.id;
   const bSlug = cr.data?.broadcast?.slug;

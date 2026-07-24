@@ -1,29 +1,29 @@
-// The flyer engine. A flyer is described by a small JSON object (style,
-// palette, fonts, size scale, short text slots, optional featured image) and
-// rendered to self-contained HTML with inline styles only. The same renderer
-// backs the live preview in the designer and the public event landing page,
-// so what you design is exactly what guests see.
+// The flyer engine. A flyer is described by a small JSON object (style, fonts,
+// size scale, short text slots, optional featured images) and rendered to
+// self-contained HTML with inline styles only. Each style is a self-contained
+// patriotic template with its own fixed colours — there is no separate palette
+// to pick. The same renderer backs the designer's live preview and the public
+// event landing page, so what you design is exactly what guests see.
 import { esc } from './html.js';
 import { formatDate, formatTimeRange } from './format.js';
 
 export const STYLES = [
-  { id: 'classic', label: 'Classic', description: 'Centered and elegant, with a framed border and serif type.' },
-  { id: 'patriotic', label: 'Patriotic', description: 'A star field and stripes, with a red-white-blue palette by default.' },
-  { id: 'festive', label: 'Festive', description: 'Playful confetti backdrop, rounded shapes, detail chips.' },
-  { id: 'minimal', label: 'Minimal', description: 'Quiet, airy layout with hairline rules and light type.' },
+  { id: 'blue', label: 'Blue', description: 'Navy field with a flag waving in from the top-right; tagline on a light-blue ribbon.' },
+  { id: 'white', label: 'White', description: 'Cream between waving red stripes on top and a star-spangled flag below; navy ribbon.' },
+  { id: 'red', label: 'Red', description: 'Bold red inside a starred white border, a small waving flag, tagline on a straight ribbon.' },
+  { id: 'retro', label: 'Retro', description: 'Vintage navy, red and parchment stripes. All type — no photo needed.' },
+  { id: 'landscape', label: 'Landscape', description: 'Wide, clean white with faint stars and cropped flags in opposite corners.' },
 ];
 
-export const PALETTES = [
-  { id: 'champagne', label: 'Champagne', bg: '#faf6ee', ink: '#40382c', accent: '#b08d57', accent2: '#8a6d3b' },
-  { id: 'midnight', label: 'Midnight', bg: '#131c31', ink: '#f5f7ff', accent: '#8ea2ff', accent2: '#f0abfc' },
-  { id: 'garden', label: 'Garden', bg: '#f2f7f0', ink: '#23402a', accent: '#4f7d54', accent2: '#c96f1e' },
-  { id: 'ocean', label: 'Ocean', bg: '#eef6fa', ink: '#123349', accent: '#1273a3', accent2: '#0ea5a4' },
-  { id: 'sunset', label: 'Sunset', bg: '#fff3ea', ink: '#47251c', accent: '#e35d20', accent2: '#d92572' },
-  { id: 'berry', label: 'Berry', bg: '#fdf1f7', ink: '#43122f', accent: '#bd1d61', accent2: '#7434c9' },
-  { id: 'slate', label: 'Slate', bg: '#f4f5f7', ink: '#222933', accent: '#3c495c', accent2: '#6b7a90' },
-  { id: 'noir', label: 'Noir', bg: '#101010', ink: '#f5f5f5', accent: '#d8c69a', accent2: '#8f8f8f' },
-  { id: 'patriot', label: 'Patriot', bg: '#ffffff', ink: '#0f1f47', accent: '#b22234', accent2: '#3c3b6e' },
-];
+// Each style carries its own fixed colours. `accent` is what the invitation
+// email header and the public page furniture use; the rest are template-specific.
+const THEMES = {
+  blue: { bg: '#0e1f44', ink: '#ffffff', accent: '#142a56', accent2: '#c02c39', red: '#c02c39', ribbon: '#5f8fd6', ribbonInk: '#ffffff', ribbonDark: '#3f6cb0' },
+  white: { bg: '#f7f2e6', ink: '#17274e', accent: '#17274e', accent2: '#b0202f', red: '#c02c34', navy: '#17274e', ribbon: '#17274e', ribbonInk: '#ffffff', ribbonDark: '#0f1c39' },
+  red: { bg: '#bb392c', ink: '#ffffff', accent: '#bb392c', accent2: '#16264c', red: '#bb392c', navy: '#16264c', ribbon: '#16264c', ribbonInk: '#ffffff' },
+  retro: { bg: '#1e3a5f', ink: '#ece3cb', accent: '#1e3a5f', accent2: '#c0432f', red: '#c0432f', navy: '#1e3a5f', parchment: '#ddd2b4' },
+  landscape: { bg: '#ffffff', ink: '#17274e', accent: '#17274e', accent2: '#b0202f', red: '#b0202f', navy: '#17274e' },
+};
 
 export const FONTS = [
   { id: 'serif', label: 'Classic serif', heading: "Georgia, 'Times New Roman', serif", body: "Georgia, 'Times New Roman', serif" },
@@ -41,10 +41,8 @@ export const SCALES = [
 ];
 
 export const DEFAULT_FLYER = {
-  style: 'classic',
-  paletteId: 'champagne',
-  colors: null, // custom {bg, ink, accent, accent2} when paletteId === 'custom'
-  font: 'serif',
+  style: 'blue',
+  font: 'sans',
   scale: 'm',
   eyebrow: "You're invited",
   tagline: '',
@@ -57,25 +55,15 @@ export const DEFAULT_FLYER = {
   imageCaption: '', // legacy mirror of imageCaptions[0]
 };
 
-const HEX_RE = /^#[0-9a-f]{6}$/;
-
 export function normalizeFlyer(raw) {
   const f = { ...DEFAULT_FLYER, ...(raw && typeof raw === 'object' ? raw : {}) };
-  if (!STYLES.some((s) => s.id === f.style)) f.style = 'classic';
-  if (!FONTS.some((s) => s.id === f.font)) f.font = 'serif';
+  if (!STYLES.some((s) => s.id === f.style)) f.style = 'blue';
+  if (!FONTS.some((s) => s.id === f.font)) f.font = 'sans';
   if (!SCALES.some((s) => s.id === f.scale)) f.scale = 'm';
-  const preset = PALETTES.find((p) => p.id === f.paletteId);
-  if (f.paletteId === 'custom' && f.colors && typeof f.colors === 'object') {
-    const base = PALETTES[0];
-    const pick = (key) => {
-      const val = String(f.colors[key] || '').toLowerCase();
-      return HEX_RE.test(val) ? val : base[key];
-    };
-    f.colors = { bg: pick('bg'), ink: pick('ink'), accent: pick('accent'), accent2: pick('accent2') };
-  } else {
-    f.paletteId = preset ? f.paletteId : 'champagne';
-    f.colors = null;
-  }
+  // Colours are fixed per style now — drop any legacy palette selection so it
+  // doesn't linger in stored JSON.
+  delete f.paletteId;
+  delete f.colors;
   f.eyebrow = String(f.eyebrow ?? '').slice(0, 60);
   f.tagline = String(f.tagline ?? '').slice(0, 140);
   f.note = String(f.note ?? '').slice(0, 200);
@@ -98,8 +86,7 @@ export function normalizeFlyer(raw) {
 }
 
 export function flyerColors(flyer) {
-  if (flyer.paletteId === 'custom' && flyer.colors) return flyer.colors;
-  return PALETTES.find((p) => p.id === flyer.paletteId) || PALETTES[0];
+  return THEMES[flyer && flyer.style] || THEMES.blue;
 }
 
 // --- color math ------------------------------------------------------------
@@ -142,10 +129,10 @@ export function mixWithWhite(hex, ratio) {
   return `#${mix(r)}${mix(g)}${mix(b)}`;
 }
 
-// --- rendering -------------------------------------------------------------
+// --- rendering helpers ------------------------------------------------------
 
 function fontOf(flyer) {
-  return FONTS.find((f) => f.id === flyer.font) || FONTS[0];
+  return FONTS.find((f) => f.id === flyer.font) || FONTS[1];
 }
 
 function scaleOf(flyer) {
@@ -154,9 +141,8 @@ function scaleOf(flyer) {
 
 function whenParts(event) {
   return {
-    date: formatDate(event.date) || 'Date to be announced',
+    date: formatDate(event.date) || '',
     time: formatTimeRange(event.start_time, event.end_time),
-    tz: event.timezone_note || '',
   };
 }
 
@@ -165,226 +151,319 @@ function px(n) {
 }
 
 // Optional caption rendered directly under a featured image.
-function captionHtml(text, colors, scale) {
+function captionHtml(text, colors, scale, color) {
   if (!text) return '';
-  return `<div style="font-size:${px(12.5 * scale)}; line-height:1.4; color:${tint(colors.ink, 0.7)};
+  return `<div style="font-size:${px(12.5 * scale)}; line-height:1.4; color:${color || tint(colors.ink, 0.7)};
     margin-top:7px; text-align:center; font-style:italic;">${esc(text)}</div>`;
 }
 
-// Render 1–3 featured images as a centred row of columns (used by every style
-// except minimal, which lays them out full width). `cell(url, n)` returns the
-// framed <img> for one image in a row of n; captions sit under each.
-function featuredImages(images, colors, scale, cell, { marginTop = 24 } = {}) {
+// Render 1–3 featured images as a centred row of columns. `cell(url, n)` returns
+// the framed <img> for one image in a row of n; captions sit under each.
+function featuredImages(images, colors, scale, cell, { marginTop = 24, captionColor } = {}) {
   const n = images.length;
   if (!n) return '';
   const cols = images.map(({ url, caption }) => `
-    <div style="text-align:center;">${cell(url, n)}${captionHtml(caption, colors, scale)}</div>`).join('');
-  return `<div style="display:flex; flex-wrap:wrap; gap:${px(18 * scale)}; justify-content:center;
+    <div style="text-align:center;">${cell(url, n)}${captionHtml(caption, colors, scale, captionColor)}</div>`).join('');
+  return `<div style="display:flex; flex-wrap:wrap; gap:${px(16 * scale)}; justify-content:center;
     align-items:flex-start; margin:${px(marginTop)} auto 4px;">${cols}</div>`;
 }
 
-// SVG "L x y" commands tracing a wavy line from A to B. The amplitude tapers to
-// zero at both ends (via sin(t·π)) so a flag's free edge ripples in the middle
-// but still meets its corners cleanly.
-function wavyPath(ax, ay, bx, by, { waves = 2, amp = 13, steps = 26 } = {}) {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
+// Points along a horizontal wavy edge y = baseY + amp·sin(x·k + phase), x in
+// [0,w] (or w→0 when reverse). The phase is absolute in x, so two edges at
+// different baseY stay parallel — giving constant-thickness wavy stripes.
+function wavyEdge(baseY, w, { amp = 8, period = 150, phase = 0, steps = 30 } = {}, reverse = false) {
   let out = '';
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const off = Math.sin(t * waves * 2 * Math.PI) * amp * Math.sin(t * Math.PI);
-    out += `L${(ax + dx * t + nx * off).toFixed(1)} ${(ay + dy * t + ny * off).toFixed(1)} `;
+  for (let i = 0; i <= steps; i++) {
+    const idx = reverse ? steps - i : i;
+    const x = (w * idx) / steps;
+    const y = baseY + amp * Math.sin((x / period) * 2 * Math.PI + phase);
+    out += `L${x.toFixed(1)} ${y.toFixed(1)} `;
   }
   return out.trim();
 }
 
-function renderClassic({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
-  const c = colors;
-  const w = whenParts(event);
-  const size = { 1: 200, 2: 150, 3: 118 };
-  const img = featuredImages(images, c, scale, (url, n) => {
-    const d = px(size[n] * scale);
-    return `<div style="width:${d}; height:${d}; border-radius:50%; border:3px solid ${c.accent}; padding:6px;">
-         <img src="${esc(url)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;">
-       </div>`;
-  }, { marginTop: 26 });
-  const divider = `<div style="color:${c.accent}; font-size:15px; letter-spacing:10px; margin:20px 0 4px;">&#10022;&nbsp;&#10022;&nbsp;&#10022;</div>`;
-  const meta = hideEventMeta ? (flyer.note ? divider : '') : `
-      ${divider}
-      <div style="font-size:${px(18 * scale)}; font-weight:700; margin-top:10px;">${esc(w.date)}</div>
-      ${w.time ? `<div style="font-size:${px(15.5 * scale)}; margin-top:4px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
-      ${event.venue_name ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; font-weight:600;">${esc(event.venue_name)}</div>` : ''}
-      ${event.venue_address ? `<div style="font-size:${px(14 * scale)}; margin-top:2px; color:${tint(c.ink, 0.8)};">${esc(event.venue_address)}</div>` : ''}
-      ${hostLine ? `<div style="margin-top:22px; font-size:${px(13 * scale)}; text-transform:uppercase; letter-spacing:0.18em; color:${c.accent};">${esc(hostLine)}</div>` : ''}`;
-  return `
-  <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body}; padding:18px;">
-    <div style="border:1px solid ${tint(c.accent, 0.75)}; outline:1px solid ${tint(c.accent, 0.35)};
-         outline-offset:5px; padding:${px(46 * scale)} 32px; text-align:center;">
-      ${flyer.eyebrow ? `<div style="text-transform:uppercase; letter-spacing:0.4em; font-size:${px(13 * scale)}; color:${c.accent}; margin-bottom:18px;">${esc(flyer.eyebrow)}</div>` : ''}
-      <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.12; font-weight:600;">${esc(event.title || 'Untitled event')}</div>
-      ${flyer.tagline ? `<div style="font-style:italic; font-size:${px(17 * scale)}; margin-top:14px; color:${tint(c.ink, 0.82)};">${esc(flyer.tagline)}</div>` : ''}
-      ${img}
-      ${meta}
-      ${flyer.note ? `<div style="margin-top:16px; font-style:italic; font-size:${px(13.5 * scale)}; color:${tint(c.ink, 0.75)};">${esc(flyer.note)}</div>` : ''}
-    </div>
-  </div>`;
+// A rectangular "waving flag" of horizontal stripes with rippling edges,
+// optionally with a star canton in the upper-left. Returns an <svg> the caller
+// positions via `style`. Setting `white` to the page colour yields bare red
+// waving stripes on that background.
+function wavyStripeFlag({ vw = 320, vh = 160, stripes = 7, red = '#c02c39', white = '#ffffff',
+  amp = 8, period = 150, phase = 0, canton = false, cantonColor = '#17274e', id = 'wf', style = '', stretch = false }) {
+  const sh = vh / stripes;
+  let bands = '';
+  for (let i = 0; i < stripes; i++) {
+    const y0 = i * sh;
+    const y1 = (i + 1) * sh;
+    const startY = (y0 + amp * Math.sin(phase)).toFixed(1);
+    const top = wavyEdge(y0, vw, { amp, period, phase });
+    const bot = wavyEdge(y1, vw, { amp, period, phase }, true);
+    bands += `<path d="M0 ${startY} ${top} ${bot} Z" fill="${i % 2 ? white : red}"/>`;
+  }
+  let cant = '';
+  let starPat = '';
+  if (canton) {
+    const cw = +(vw * 0.42).toFixed(1);
+    const ch = +(sh * Math.max(3, Math.round(stripes * 0.55))).toFixed(1);
+    const top0 = (amp * Math.sin(phase)).toFixed(1);
+    const topEdge = wavyEdge(0, cw, { amp, period, phase });
+    const botEdge = wavyEdge(ch, cw, { amp, period, phase }, true);
+    starPat = `<pattern id="${id}st" width="${(vw * 0.09).toFixed(1)}" height="${(sh * 0.95).toFixed(1)}" patternUnits="userSpaceOnUse">
+      <text x="1" y="${(sh * 0.72).toFixed(1)}" font-size="${(sh * 0.55).toFixed(1)}" fill="#ffffff">&#9733;</text></pattern>`;
+    cant = `<clipPath id="${id}cc"><path d="M0 ${top0} ${topEdge} L${cw} ${(ch + Number(top0)).toFixed(1)} ${botEdge} Z"/></clipPath>
+      <g clip-path="url(#${id}cc)">
+        <rect x="-2" y="-2" width="${cw + 4}" height="${(ch + amp + 4).toFixed(1)}" fill="${cantonColor}"/>
+        <rect x="-2" y="-2" width="${cw + 4}" height="${(ch + amp + 4).toFixed(1)}" fill="url(#${id}st)"/>
+      </g>`;
+  }
+  return `<svg viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="${stretch ? 'none' : 'xMidYMid meet'}" xmlns="http://www.w3.org/2000/svg" style="${style}"><defs>${starPat}</defs>${bands}${cant}</svg>`;
 }
 
-function renderPatriotic({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
-  const c = colors;
-  const w = whenParts(event);
-  const onAccent = contrastOn(c.accent);
-  // Two corner "flags": a blue star field cut into the top-left corner and
-  // red/white stripes into the bottom-right, each with a rippling free edge so
-  // they read as waving cloth rather than flat triangles. Sized as a percentage
-  // of the flyer width so they hug the corners on any screen and leave the
-  // centre clear for the text.
-  const tl = `M0 0 L240 0 ${wavyPath(240, 0, 0, 150)} Z`;
-  const br = `M0 150 L240 150 L240 0 ${wavyPath(240, 0, 0, 150)} Z`;
-  const flagTL = `<svg viewBox="0 0 240 150" preserveAspectRatio="none"
-    style="position:absolute; top:0; left:0; z-index:0; width:36%; height:auto; display:block;">
-    <defs>
-      <clipPath id="pfTL"><path d="${tl}"/></clipPath>
-      <pattern id="pfStars" width="30" height="27" patternUnits="userSpaceOnUse" patternTransform="rotate(-7)">
-        <text x="3" y="18" font-size="14" fill="#ffffff" fill-opacity="0.9">&#9733;</text>
-      </pattern>
-    </defs>
-    <path d="${tl}" fill="${c.accent2}"/>
-    <rect width="240" height="150" fill="url(#pfStars)" clip-path="url(#pfTL)"/>
-    <path d="${tl}" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
-  </svg>`;
-  const flagBR = `<svg viewBox="0 0 240 150" preserveAspectRatio="none"
-    style="position:absolute; bottom:0; right:0; z-index:0; width:36%; height:auto; display:block;">
-    <defs>
-      <clipPath id="pfBR"><path d="${br}"/></clipPath>
-      <pattern id="pfStripes" width="12" height="22" patternUnits="userSpaceOnUse">
-        <rect width="12" height="11" fill="${c.accent}"/>
-        <rect y="11" width="12" height="11" fill="#ffffff"/>
-      </pattern>
-    </defs>
-    <rect width="240" height="150" fill="url(#pfStripes)" clip-path="url(#pfBR)"/>
-    <path d="${br}" fill="none" stroke="${c.accent}" stroke-opacity="0.5" stroke-width="1.5"/>
-  </svg>`;
-  const wds = { 1: 360, 2: 232, 3: 150 };
-  const hts = { 1: 200, 2: 150, 3: 116 };
-  const img = featuredImages(images, c, scale, (url, n) => `
-       <img src="${esc(url)}" alt="" style="display:block; width:${px(wds[n] * scale)}; max-width:100%;
-         height:${px(hts[n] * scale)}; object-fit:cover; border-radius:8px; border:3px solid ${c.accent2};">`,
-    { marginTop: 22 });
-  const meta = hideEventMeta ? '' : `
-      <div style="margin-top:20px; font-size:${px(18 * scale)}; font-weight:700;">${esc(w.date)}</div>
-      ${w.time ? `<div style="font-size:${px(15 * scale)}; margin-top:3px;">${esc(w.time)}${w.tz ? ` <span style="opacity:.7">(${esc(w.tz)})</span>` : ''}</div>` : ''}
-      ${event.venue_name ? `<div style="font-size:${px(16 * scale)}; margin-top:12px; font-weight:600;">${esc(event.venue_name)}</div>` : ''}
-      ${event.venue_address ? `<div style="font-size:${px(13.5 * scale)}; margin-top:2px; color:${tint(c.ink, 0.8)};">${esc(event.venue_address)}</div>` : ''}
-      ${hostLine ? `<div style="margin-top:16px; font-size:${px(12.5 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${c.accent};">${esc(hostLine)}</div>` : ''}`;
-  return `
-  <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.ink}; font-family:${font.body};
-       border:6px solid ${c.accent}; padding:${px(46 * scale)} ${px(44 * scale)} ${px(52 * scale)};">
-    ${flagTL}
-    ${flagBR}
-    <div style="position:relative; z-index:1; text-align:center; padding-top:${px(10 * scale)};">
-      ${flyer.eyebrow ? `<div style="display:inline-block; background:${c.accent}; color:${onAccent};
-        padding:7px 18px; border-radius:4px; font-size:${px(12.5 * scale)}; font-weight:800;
-        letter-spacing:0.14em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
-      <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.08; font-weight:800; margin-top:16px;">${esc(event.title || 'Untitled event')}</div>
-      ${flyer.tagline ? `<div style="font-size:${px(16.5 * scale)}; margin-top:12px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
-      ${img}
-      ${meta}
-      ${flyer.note ? `<div style="margin-top:16px; font-size:${px(13 * scale)}; color:${tint(c.ink, 0.72)};">${esc(flyer.note)}</div>` : ''}
-    </div>
-  </div>`;
+function starRow(count, { size, color, gap = 0.4 }) {
+  let s = '';
+  for (let i = 0; i < count; i++) s += '&#9733;';
+  return `<span style="color:${color}; font-size:${px(size)}; letter-spacing:${px(size * gap)};">${s}</span>`;
 }
 
-function renderFestive({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
+// A centred banner for the tagline. `folded` has 3-D end tails tucking behind
+// the face; `straight` is a flat bar with flag-notched ends.
+function foldedRibbon(text, { bandColor, ink, dark, scale, font }) {
+  if (!text) return '';
+  const h = 38 * scale;
+  const tw = 22 * scale;
+  const drop = 10 * scale;
+  const tail = (side) => `<span style="position:absolute; top:${px(drop)}; ${side}:${px(-tw + 4)};
+    width:${px(tw)}; height:${px(h)}; background:${dark}; z-index:1;
+    clip-path:polygon(${side === 'left' ? '0 0, 100% 0, 100% 100%, 0 100%, 24% 50%' : '0 0, 100% 0, 76% 50%, 100% 100%, 0 100%'});"></span>`;
+  const band = `<span style="position:relative; z-index:2; display:inline-block; background:${bandColor}; color:${ink};
+    font-family:${font.heading}; font-weight:800; font-size:${px(14.5 * scale)}; letter-spacing:0.08em;
+    text-transform:uppercase; white-space:nowrap; padding:${px(9 * scale)} ${px(26 * scale)};">${esc(text)}</span>`;
+  return `<span style="position:relative; display:inline-block; margin-top:${px(20 * scale)};">${tail('left')}${tail('right')}${band}</span>`;
+}
+
+function straightRibbon(text, { bandColor, ink, scale, font }) {
+  if (!text) return '';
+  const notch = px(14 * scale);
+  return `<span style="display:inline-block; margin-top:${px(20 * scale)}; background:${bandColor}; color:${ink};
+    font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.08em;
+    text-transform:uppercase; white-space:nowrap; padding:${px(10 * scale)} ${px(34 * scale)};
+    clip-path:polygon(0 0, 100% 0, calc(100% - ${notch}) 50%, 100% 100%, 0 100%, ${notch} 50%);">${esc(text)}</span>`;
+}
+
+// Shared centred date/time/venue/host block used by the white, red and
+// landscape templates. `ink` is the main colour, `sub` the muted one.
+function metaStacked({ event, hostLine, scale, ink, sub }) {
+  const w = whenParts(event);
+  const parts = [];
+  if (w.date) parts.push(`<div style="font-size:${px(16 * scale)}; font-weight:800; color:${ink};">${esc(w.date)}</div>`);
+  if (w.time) parts.push(`<div style="font-size:${px(14 * scale)}; margin-top:3px; color:${sub};">${esc(w.time)}</div>`);
+  if (event.venue_name) parts.push(`<div style="font-size:${px(14.5 * scale)}; margin-top:10px; font-weight:700; color:${ink};">${esc(event.venue_name)}</div>`);
+  if (event.venue_address) parts.push(`<div style="font-size:${px(13 * scale)}; margin-top:2px; color:${sub};">${esc(event.venue_address)}</div>`);
+  if (hostLine) parts.push(`<div style="font-size:${px(11.5 * scale)}; margin-top:14px; text-transform:uppercase; letter-spacing:0.16em; color:${sub};">${esc(hostLine)}</div>`);
+  if (!parts.length) return '';
+  return `<div style="margin-top:${px(22 * scale)};">${parts.join('')}</div>`;
+}
+
+function imageCell(colors, scale, border, single, multi) {
+  return (url, n) => {
+    const wd = { 1: single, 2: Math.round(single * 0.66), 3: Math.round(single * 0.5) };
+    const h = n === 1 ? single * 0.56 : single * 0.5;
+    return `<img src="${esc(url)}" alt="" style="display:block; width:${px(wd[n] * scale)}; max-width:100%;
+      height:${px(h * scale)}; object-fit:cover; border-radius:8px; border:3px solid ${border};">`;
+  };
+}
+
+// --- templates -------------------------------------------------------------
+
+function renderBlue({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
-  const dark = isDark(c.bg);
-  const cardBg = dark ? 'rgba(12, 12, 16, 0.82)' : 'rgba(255, 255, 255, 0.92)';
-  const onAccent = contrastOn(c.accent);
-  const confetti = `background-color:${c.bg}; background-image:
-    radial-gradient(${tint(c.accent, 0.55)} 3px, transparent 3.5px),
-    radial-gradient(${tint(c.accent2, 0.5)} 2.5px, transparent 3px),
-    radial-gradient(${tint(c.accent, 0.3)} 2px, transparent 2.5px);
-    background-size: 110px 110px, 74px 74px, 52px 52px;
-    background-position: 0 0, 28px 40px, 15px 10px;`;
-  const size = { 1: 190, 2: 148, 3: 116 };
-  const img = featuredImages(images, c, scale, (url, n) => {
-    const d = px(size[n] * scale);
-    return `<div style="width:${d}; height:${d};">
-         <img src="${esc(url)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%;
-           border:6px solid ${c.accent2}; display:block;">
-       </div>`;
-  }, { marginTop: 22 });
-  const chip = (emoji, text) => text ? `
-    <div style="display:inline-block; background:${tint(c.accent, 0.12)}; border:1.5px solid ${tint(c.accent, 0.4)};
-      border-radius:999px; padding:8px 18px; margin:5px 4px; font-size:${px(14.5 * scale)}; font-weight:600;">
-      ${emoji} ${esc(text)}</div>` : '';
+  // A waving striped band sweeping across the very top, denser toward the
+  // top-right, most of it bleeding off the top edge.
+  const flag = wavyStripeFlag({
+    vw: 400, vh: 150, stripes: 6, red: c.red, white: '#ffffff', amp: 13, period: 175, phase: 0.6, id: 'blf', stretch: true,
+    style: 'position:absolute; top:-86px; left:-6%; width:112%; height:150px; transform:rotate(-3deg); z-index:0;',
+  });
+  const img = featuredImages(images, c, scale, imageCell(c, scale, '#ffffff', 320), { marginTop: 22, captionColor: 'rgba(255,255,255,0.78)' });
   const meta = hideEventMeta ? '' : `
-      <div style="margin-top:22px;">
-        ${chip('&#128197;', w.date)}
-        ${chip('&#128337;', [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
-        ${chip('&#128205;', [event.venue_name, event.venue_address].filter(Boolean).join(' · '))}
+    <div style="margin-top:${px(30 * scale)}; display:flex; justify-content:center; align-items:center; gap:${px(20 * scale)};">
+      ${w.date ? `<div style="font-size:${px(16 * scale)}; font-weight:700; letter-spacing:0.03em;">${esc(w.date)}</div>` : ''}
+      ${w.date && w.time ? `<div style="width:1px; height:${px(24 * scale)}; background:rgba(255,255,255,0.5);"></div>` : ''}
+      ${w.time ? `<div style="font-size:${px(16 * scale)}; font-weight:700;">${esc(w.time)}</div>` : ''}
+    </div>
+    ${w.date || w.time ? `<div style="height:3px; width:58%; background:${c.red}; margin:${px(14 * scale)} auto 0; border-radius:2px;"></div>` : ''}
+    ${event.venue_name || event.venue_address ? `<div style="font-size:${px(14.5 * scale)}; margin-top:${px(14 * scale)}; letter-spacing:0.03em;">${esc([event.venue_name, event.venue_address].filter(Boolean).join(', '))}</div>` : ''}
+    ${hostLine ? `<div style="font-size:${px(11.5 * scale)}; margin-top:${px(12 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:rgba(255,255,255,0.75);">${esc(hostLine)}</div>` : ''}`;
+  const inner = `
+    <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.ink};
+         font-family:${font.body}; padding:${px(88 * scale)} ${px(34 * scale)} ${px(30 * scale)};">
+      ${flag}
+      <div style="position:relative; z-index:1; text-align:center;">
+        ${flyer.eyebrow ? `<div style="color:${c.red}; font-family:${font.heading}; font-weight:800;
+          font-size:${px(26 * scale)}; letter-spacing:0.04em; text-transform:uppercase;">${esc(flyer.eyebrow)}</div>` : ''}
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(54 * scale)}; line-height:1.02;
+          text-transform:uppercase; margin-top:${px(6 * scale)};">${esc(event.title || 'Untitled event')}</div>
+        ${foldedRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, dark: c.ribbonDark, scale, font })}
+        ${img}
+        ${meta}
+        ${flyer.note ? `<div style="margin-top:${px(16 * scale)}; font-size:${px(13 * scale)}; color:rgba(255,255,255,0.8);">${esc(flyer.note)}</div>` : ''}
       </div>
-      ${hostLine ? `<div style="margin-top:18px; font-size:${px(14 * scale)}; font-weight:700; color:${c.accent2};">${esc(hostLine)}</div>` : ''}`;
-  return `
-  <div style="${confetti} padding:26px; font-family:${font.body}; color:${c.ink};">
-    <div style="background:${cardBg}; border-radius:26px; padding:${px(36 * scale)} 26px; text-align:center;">
-      ${flyer.eyebrow ? `<div style="display:inline-block; background:${c.accent}; color:${onAccent}; border-radius:999px;
-        padding:9px 22px; font-size:${px(14 * scale)}; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;
-        transform:rotate(-2.5deg);">&#127881; ${esc(flyer.eyebrow)}</div>` : ''}
-      <div style="font-family:${font.heading}; font-size:${px(46 * scale)}; line-height:1.1; font-weight:800; margin-top:20px;">${esc(event.title || 'Untitled event')}</div>
-      ${flyer.tagline ? `<div style="font-size:${px(16.5 * scale)}; margin-top:10px; color:${tint(c.ink, 0.85)};">${esc(flyer.tagline)}</div>` : ''}
-      ${img}
-      ${meta}
-      ${flyer.note ? `<div style="margin-top:10px; font-size:${px(13.5 * scale)}; color:${tint(c.ink, 0.75)};">${esc(flyer.note)}</div>` : ''}
-    </div>
+    </div>`;
+  return `<div style="background:#ffffff; padding:9px;">
+    ${inner}
+    <div style="height:13px; background:${c.red}; margin-top:9px; border-radius:2px;"></div>
   </div>`;
 }
 
-function renderMinimal({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
+function renderWhite({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
+  const c = colors;
+  const topStripes = wavyStripeFlag({
+    vw: 360, vh: 70, stripes: 4, red: c.red, white: c.bg, amp: 7, period: 150, phase: 0, id: 'wht',
+    style: 'position:absolute; top:-10px; left:-12px; width:106%; z-index:0;',
+  });
+  const bottomFlag = wavyStripeFlag({
+    vw: 300, vh: 150, stripes: 7, red: c.red, white: '#ffffff', amp: 9, period: 150, phase: 0.4,
+    canton: true, cantonColor: c.navy, id: 'whb',
+    style: 'position:absolute; bottom:-64px; left:-26px; width:56%; transform:rotate(3deg); z-index:0;',
+  });
+  const starDivider = `<div style="margin-top:${px(14 * scale)}; display:flex; align-items:center; justify-content:center; gap:${px(12 * scale)};">
+    <div style="height:1.5px; width:${px(56 * scale)}; background:${tint(c.red, 0.6)};"></div>
+    <span style="color:${c.red}; font-size:${px(15 * scale)};">&#9733;</span>
+    <div style="height:1.5px; width:${px(56 * scale)}; background:${tint(c.red, 0.6)};"></div></div>`;
+  const img = featuredImages(images, c, scale, imageCell(c, scale, c.navy, 300), { marginTop: 20 });
+  const meta = hideEventMeta ? '' : metaStacked({ event, hostLine, scale, ink: c.navy, sub: tint(c.navy, 0.7) });
+  return `
+    <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.navy};
+         font-family:${font.body}; padding:${px(70 * scale)} ${px(36 * scale)} ${px(124 * scale)}; text-align:center;">
+      ${topStripes}${bottomFlag}
+      <div style="position:relative; z-index:1;">
+        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:800; font-size:${px(30 * scale)};
+          text-transform:uppercase; letter-spacing:0.02em;">${esc(flyer.eyebrow)}</div>` : ''}
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(48 * scale)}; line-height:1.02;
+          text-transform:uppercase; color:${c.red}; margin-top:${px(6 * scale)};">${esc(event.title || 'Untitled event')}</div>
+        ${foldedRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, dark: c.ribbonDark, scale, font })}
+        ${img}
+        ${flyer.note ? `<div style="margin-top:${px(18 * scale)}; font-family:${font.heading}; font-weight:800;
+          font-size:${px(15 * scale)}; letter-spacing:0.04em; text-transform:uppercase; color:${c.navy};">${esc(flyer.note)}</div>${starDivider}` : ''}
+        ${meta}
+      </div>
+    </div>`;
+}
+
+function renderRed({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
+  const c = colors;
+  const flag = wavyStripeFlag({
+    vw: 150, vh: 96, stripes: 7, red: c.red, white: '#ffffff', amp: 4, period: 90, phase: 0.3,
+    canton: true, cantonColor: c.navy, id: 'rdf',
+    style: 'display:block; width:118px; margin:0 auto;',
+  });
+  const corner = (pos) => `<span style="position:absolute; ${pos} color:#ffffff; background:${c.bg}; font-size:22px; line-height:1; padding:0 2px;">&#9733;</span>`;
+  const eyebrow = flyer.eyebrow ? `<div style="display:flex; align-items:center; justify-content:center; gap:${px(12 * scale)};
+      color:#fff; font-family:${font.heading}; font-weight:700; font-size:${px(17 * scale)};
+      letter-spacing:0.14em; text-transform:uppercase; margin-top:${px(18 * scale)};">
+      <span style="font-size:${px(12 * scale)};">&#9733;</span>${esc(flyer.eyebrow)}<span style="font-size:${px(12 * scale)};">&#9733;</span></div>` : '';
+  const img = featuredImages(images, c, scale, imageCell(c, scale, '#ffffff', 300), { marginTop: 18 });
+  const rule = `<div style="height:2px; width:70%; background:rgba(255,255,255,0.85); margin:${px(20 * scale)} auto;"></div>`;
+  const meta = hideEventMeta ? '' : metaStacked({ event, hostLine, scale, ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' });
+  return `
+    <div style="background:${c.bg}; padding:16px;">
+      <div style="position:relative; border:2px dashed rgba(255,255,255,0.9); padding:${px(30 * scale)} ${px(26 * scale)} ${px(34 * scale)}; text-align:center;">
+        ${corner('top:-11px; left:-11px;')}${corner('top:-11px; right:-11px;')}
+        ${corner('bottom:-11px; left:-11px;')}${corner('bottom:-11px; right:-11px;')}
+        ${flag}
+        ${eyebrow}
+        <div style="font-family:${font.heading}; font-weight:800; color:#ffffff; font-size:${px(50 * scale)};
+          line-height:1.03; text-transform:uppercase; margin-top:${px(10 * scale)};">${esc(event.title || 'Untitled event')}</div>
+        ${straightRibbon(flyer.tagline, { bandColor: c.ribbon, ink: c.ribbonInk, scale, font })}
+        ${img}
+        ${flyer.note ? `${rule}<div style="color:#fff; font-family:${font.heading}; font-weight:800; font-size:${px(17 * scale)};
+          letter-spacing:0.03em; text-transform:uppercase; line-height:1.3;">${esc(flyer.note)}</div>` : ''}
+        ${meta ? `${rule}${meta}` : (flyer.note ? rule : '')}
+      </div>
+    </div>`;
+}
+
+function renderRetro({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
   const c = colors;
   const w = whenParts(event);
-  const hair = `1px solid ${tint(c.ink, 0.18)}`;
-  // Minimal keeps its full-width treatment: one 16/9 image, or an even row of
-  // portrait-ish images with left-aligned captions to match the quiet layout.
-  const ratio = images.length === 1 ? '16/9' : '4/5';
-  const img = images.length
-    ? `<div style="display:flex; gap:${px(14 * scale)}; margin:26px 0 4px;">
-        ${images.map(({ url, caption }) => `
-          <div style="flex:1 1 0; min-width:0;">
-            <img src="${esc(url)}" alt="" style="display:block; width:100%; aspect-ratio:${ratio}; object-fit:cover;">
-            ${caption ? `<div style="font-size:${px(11.5 * scale)}; letter-spacing:0.02em; color:${tint(c.ink, 0.6)}; margin-top:7px;">${esc(caption)}</div>` : ''}
-          </div>`).join('')}
-      </div>`
-    : '';
-  const line = (label, value) => value ? `
-    <div style="border-top:${hair}; padding:13px 0; display:flex;">
-      <div style="width:110px; flex:none; font-size:${px(11 * scale)}; letter-spacing:0.18em; text-transform:uppercase; color:${tint(c.ink, 0.55)}; padding-top:3px;">${esc(label)}</div>
-      <div style="font-size:${px(15.5 * scale)};">${esc(value)}</div>
-    </div>` : '';
-  const meta = hideEventMeta ? '' : `
-    <div style="margin-top:30px;">
-      ${line('Date', w.date)}
-      ${line('Time', [w.time, w.tz ? `(${w.tz})` : ''].filter(Boolean).join(' '))}
-      ${line('Venue', event.venue_name || '')}
-      ${line('Address', event.venue_address || '')}
-      ${hostLine ? line('Host', hostLine.replace(/^Hosted by\s+/i, '')) : ''}
+  const hasImg = images.length > 0;
+  const presents = hostLine ? `<div style="font-family:${font.heading}; font-weight:700; font-size:${px(13 * scale)};
+    letter-spacing:0.22em; text-transform:uppercase; color:${c.parchment};">${esc(hostLine)}</div>` : '';
+  const eyebrow = flyer.eyebrow ? `<div style="display:flex; align-items:center; justify-content:center; gap:${px(14 * scale)}; margin-top:${px(16 * scale)};">
+    ${starRow(3, { size: 15 * scale, color: c.red, gap: 0.22 })}
+    <span style="font-family:${font.heading}; font-weight:800; font-size:${px(18 * scale)}; letter-spacing:0.08em;
+      text-transform:uppercase; color:${c.red};">${esc(flyer.eyebrow)}</span>
+    ${starRow(3, { size: 15 * scale, color: c.red, gap: 0.22 })}</div>` : '';
+  const img = hasImg ? featuredImages(images, c, scale, imageCell(c, scale, c.parchment, 300), { marginTop: 18, captionColor: tint(c.parchment, 0.9) }) : '';
+  const topArea = `
+    <div style="background:${c.navy}; color:${c.parchment}; text-align:center;
+         padding:${px((hasImg ? 30 : 34) * scale)} ${px(30 * scale)} ${px((hasImg ? 28 : 38) * scale)};">
+      ${presents}
+      ${img}
+      ${eyebrow}
+      <div style="font-family:${font.heading}; font-weight:800; font-size:${px(72 * scale)}; line-height:0.98;
+        text-transform:uppercase; margin-top:${px(8 * scale)}; color:${c.parchment};">${esc(event.title || 'Untitled event')}</div>
     </div>`;
-  return `
-  <div style="background:${c.bg}; color:${c.ink}; font-family:${font.body}; padding:${px(52 * scale)} 40px;">
-    ${flyer.eyebrow ? `<div style="font-size:${px(11.5 * scale)}; letter-spacing:0.32em; text-transform:uppercase; color:${c.accent}; margin-bottom:26px;">${esc(flyer.eyebrow)}</div>` : ''}
-    <div style="font-family:${font.heading}; font-size:${px(42 * scale)}; line-height:1.15; font-weight:300;">${esc(event.title || 'Untitled event')}</div>
-    ${flyer.tagline ? `<div style="font-size:${px(16 * scale)}; margin-top:14px; color:${tint(c.ink, 0.7)};">${esc(flyer.tagline)}</div>` : ''}
-    ${img}
-    ${meta}
-    ${flyer.note ? `<div style="border-top:${hair}; margin-top:2px; padding-top:16px; font-size:${px(13 * scale)}; color:${tint(c.ink, 0.6)};">${esc(flyer.note)}</div>` : ''}
-  </div>`;
+  const stars5 = `<div>${[13, 17, 22, 17, 13].map((s) => `<span style="color:${c.navy}; font-size:${px(s * scale)}; margin:0 ${px(4 * scale)};">&#9733;</span>`).join('')}</div>`;
+  // Stripes alternate red (parchment text) / parchment (navy text) down the page.
+  const stripes = [];
+  if (flyer.tagline) stripes.push({ tone: 'red', html: `<div style="font-family:${font.body}; font-size:${px(18 * scale)}; line-height:1.35; color:${c.parchment};">${esc(flyer.tagline)}</div>` });
+  if (!hasImg) stripes.push({ tone: 'parch', html: stars5 });
+  if (flyer.note) stripes.push({ tone: 'red', html: `<div style="font-family:${font.body}; font-size:${px(15 * scale)}; color:${c.parchment}; line-height:1.3;">${esc(flyer.note)}</div>` });
+  if (!hideEventMeta) {
+    const bits = [w.date, w.time, event.venue_name].filter(Boolean);
+    if (bits.length) {
+      const line = bits.map((b, i) => `<span style="color:${i % 2 ? c.red : c.navy};">${esc(b)}</span>`).join(`<span style="color:${c.navy}; font-weight:800;"> // </span>`);
+      stripes.push({ tone: 'parch', html: `<div style="font-family:${font.heading}; font-weight:800; font-size:${px(15 * scale)}; letter-spacing:0.02em; text-transform:uppercase;">${line}</div>` });
+    }
+  }
+  const stripeHtml = stripes.map((s) => `<div style="background:${s.tone === 'red' ? c.red : c.parchment}; text-align:center;
+    padding:${px(18 * scale)} ${px(30 * scale)};">${s.html}</div>`).join('');
+  return `<div style="font-family:${font.body};">${topArea}${stripeHtml}</div>`;
 }
 
-const RENDERERS = { classic: renderClassic, patriotic: renderPatriotic, festive: renderFestive, minimal: renderMinimal };
+function renderLandscape({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta }) {
+  const c = colors;
+  const w = whenParts(event);
+  const starField = (id, style) => `<svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" style="${style}">
+    <defs><pattern id="${id}" width="16" height="14" patternUnits="userSpaceOnUse">
+      <text x="2" y="11" font-size="9" fill="#c9cede">&#9733;</text></pattern></defs>
+    <rect width="120" height="80" fill="url(#${id})"/></svg>`;
+  const flagTR = wavyStripeFlag({
+    vw: 200, vh: 150, stripes: 7, red: c.red, white: '#ffffff', amp: 8, period: 130, phase: 0.5,
+    canton: true, cantonColor: c.navy, id: 'lstr',
+    style: 'position:absolute; top:-40px; right:-40px; width:27%; transform:rotate(12deg); z-index:0;',
+  });
+  const flagBL = wavyStripeFlag({
+    vw: 200, vh: 150, stripes: 7, red: c.red, white: '#ffffff', amp: 8, period: 130, phase: 0.9,
+    canton: true, cantonColor: c.navy, id: 'lsbl',
+    style: 'position:absolute; bottom:-40px; left:-40px; width:27%; transform:rotate(12deg); z-index:0;',
+  });
+  const img = featuredImages(images, c, scale, imageCell(c, scale, c.navy, 220), { marginTop: 16 });
+  const tagline = flyer.tagline ? `<div style="display:flex; align-items:center; justify-content:center; gap:${px(14 * scale)}; margin-top:${px(12 * scale)};">
+    <div style="height:2px; width:${px(44 * scale)}; background:${c.red};"></div>
+    <span style="font-family:${font.heading}; font-weight:800; font-size:${px(18 * scale)}; letter-spacing:0.2em; color:${c.navy};">${esc(flyer.tagline)}</span>
+    <div style="height:2px; width:${px(44 * scale)}; background:${c.red};"></div></div>` : '';
+  const metaBits = hideEventMeta ? '' : [w.date, w.time, event.venue_name].filter(Boolean).join(' · ');
+  const meta = hideEventMeta ? '' : `
+    ${metaBits ? `<div style="margin-top:${px(12 * scale)}; font-size:${px(13.5 * scale)}; color:${tint(c.navy, 0.8)};">${esc(metaBits)}</div>` : ''}
+    ${hostLine ? `<div style="margin-top:${px(6 * scale)}; font-size:${px(11 * scale)}; text-transform:uppercase; letter-spacing:0.16em; color:${tint(c.navy, 0.7)};">${esc(hostLine)}</div>` : ''}`;
+  return `
+    <div style="position:relative; overflow:hidden; background:${c.bg}; color:${c.navy};
+         font-family:${font.body}; padding:${px(42 * scale)} ${px(64 * scale)}; text-align:center;">
+      ${starField('lsftl', 'position:absolute; top:8px; left:8px; width:24%; z-index:0;')}
+      ${starField('lsfbr', 'position:absolute; bottom:8px; right:8px; width:24%; z-index:0;')}
+      ${flagTR}${flagBL}
+      <div style="position:relative; z-index:1;">
+        <div style="margin-bottom:${px(6 * scale)};">${starRow(1, { size: 13 * scale, color: c.red })} ${starRow(1, { size: 15 * scale, color: c.navy })} ${starRow(1, { size: 13 * scale, color: c.red })}</div>
+        ${flyer.eyebrow ? `<div style="font-family:${font.heading}; font-weight:700; font-size:${px(22 * scale)}; letter-spacing:0.35em; text-transform:uppercase; color:${c.navy};">${esc(flyer.eyebrow)}</div>` : ''}
+        <div style="font-family:${font.heading}; font-weight:800; font-size:${px(50 * scale)}; line-height:1.02; text-transform:uppercase; margin-top:${px(6 * scale)}; color:${c.navy};">${esc(event.title || 'Untitled event')}</div>
+        ${tagline}
+        ${img}
+        ${meta}
+      </div>
+    </div>`;
+}
+
+const RENDERERS = { blue: renderBlue, white: renderWhite, red: renderRed, retro: renderRetro, landscape: renderLandscape };
 
 // hideEventMeta drops the date/time/venue/host block so the same styles power
 // a broadcast "masthead" (title + eyebrow + tagline + image), which has no
@@ -400,7 +479,7 @@ export function renderFlyer({ event, flyer: rawFlyer, imageUrl = '', imageUrls =
   const resolved = Array.isArray(imageUrls) ? imageUrls : (imageUrl ? [imageUrl] : []);
   const images = [];
   resolved.forEach((u, i) => { if (u) images.push({ url: String(u), caption: flyer.imageCaptions[i] || '' }); });
-  const inner = RENDERERS[flyer.style]({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta });
+  const inner = (RENDERERS[flyer.style] || renderBlue)({ event, flyer, colors, font, scale, images, hostLine, hideEventMeta });
   return `<div style="max-width:640px; margin:0 auto; overflow:hidden; border-radius:12px;
     box-shadow:0 2px 8px rgba(10,10,15,0.12), 0 12px 40px rgba(10,10,15,0.12);">${inner}</div>`;
 }
@@ -418,7 +497,6 @@ export function renderFlyerDocument({ event, flyer, imageUrl, imageUrls, hideEve
 export function flyerPresets() {
   return {
     styles: STYLES,
-    palettes: PALETTES,
     fonts: FONTS.map(({ id, label }) => ({ id, label })),
     scales: SCALES.map(({ id, label }) => ({ id, label })),
     defaults: DEFAULT_FLYER,

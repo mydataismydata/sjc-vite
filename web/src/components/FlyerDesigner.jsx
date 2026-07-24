@@ -117,12 +117,6 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
   }
 
   if (!presets) return null;
-  const isCustom = flyer.paletteId === 'custom';
-  const activePalette = presets.palettes.find((p) => p.id === flyer.paletteId) || presets.palettes[0];
-  const customColors = flyer.colors || {
-    bg: activePalette.bg, ink: activePalette.ink,
-    accent: activePalette.accent, accent2: activePalette.accent2,
-  };
   const cols = imageCols();
   const tokens = imageSlots(cols);
   const captions = captionSlots(cols);
@@ -130,45 +124,17 @@ export default function FlyerDesigner({ eventBasics, flyer, onChange, mode = 'ev
   return (
     <div className="designer">
       <div>
-        <Field label="Style">
+        <Field label="Template" hint="Each template has its own fixed patriotic colors.">
           <div className="style-grid">
             {presets.styles.map((s) => (
               <button key={s.id} type="button"
                 className={`style-card ${flyer.style === s.id ? 'active' : ''}`}
-                onClick={() => set(s.id === 'patriotic'
-                  ? { style: s.id, paletteId: 'patriot', colors: null }
-                  : { style: s.id })}>
+                onClick={() => set({ style: s.id })}>
                 <div className="s-name">{s.label}</div>
                 <div className="s-desc">{s.description}</div>
               </button>
             ))}
           </div>
-        </Field>
-
-        <Field label="Color palette">
-          <div className="swatch-row">
-            {presets.palettes.map((p) => (
-              <button key={p.id} type="button" title={p.label}
-                className={`swatch ${flyer.paletteId === p.id ? 'active' : ''}`}
-                style={{ background: `linear-gradient(135deg, ${p.bg} 0 45%, ${p.accent} 45% 75%, ${p.accent2} 75%)` }}
-                onClick={() => set({ paletteId: p.id, colors: null })} />
-            ))}
-            <button type="button" title="Custom colors"
-              className={`swatch ${isCustom ? 'active' : ''}`}
-              style={{ background: 'conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e)' }}
-              onClick={() => set({ paletteId: 'custom', colors: customColors })} />
-          </div>
-          {isCustom ? (
-            <div className="color-inputs" style={{ marginTop: 10 }}>
-              {[['bg', 'Background'], ['ink', 'Text'], ['accent', 'Accent'], ['accent2', 'Accent 2']].map(([key, label]) => (
-                <label key={key}>
-                  <input type="color" value={customColors[key]}
-                    onChange={(e) => set({ colors: { ...customColors, [key]: e.target.value } })} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          ) : null}
         </Field>
 
         <div className="field-row">

@@ -24,8 +24,9 @@ Write your message here.
 const BLANK = {
   title: '', subject: '', body: DEFAULT_BODY, web_version: true,
   flyer: {
-    style: 'classic', paletteId: 'slate', colors: null, font: 'sans', scale: 'm',
-    eyebrow: '', tagline: '', note: '', showHost: false, imageToken: '', imageCaption: '',
+    style: 'blue', font: 'sans', scale: 'm',
+    eyebrow: '', tagline: '', note: '', showHost: false,
+    imageColumns: 1, imageTokens: [], imageCaptions: [], imageToken: '', imageCaption: '',
   },
 };
 

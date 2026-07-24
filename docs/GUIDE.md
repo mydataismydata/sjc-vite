@@ -95,8 +95,9 @@ leave and resume any time (it stays a draft until you send or publish).
    the largest allowed party size, and whether the public page shows the
    guest list (first names + last initial). The *shareable link* toggle
    controls whether strangers with the link can RSVP.
-3. **Invitation & flyer** — design the flyer: pick one of four styles, a
-   palette (or custom colors), fonts, title size, three short text slots
+3. **Invitation & flyer** — design the flyer: pick one of five patriotic
+   templates (Blue, White, Red, Retro, Landscape), each with its own fixed
+   red-white-blue colors, then set fonts, title size, three short text slots
    (eyebrow / tagline / footnote), and up to three featured images shown side
    by side in 1/2/3 columns (e.g. featured speakers), each with an optional
    caption. The preview is live and pixel-identical to the public page. Below it, write

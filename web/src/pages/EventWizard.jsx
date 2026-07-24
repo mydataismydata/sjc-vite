@@ -20,8 +20,9 @@ const BLANK = {
   email_subject: "You're invited: {{event_title}}",
   email_body: '',
   flyer: {
-    style: 'classic', paletteId: 'champagne', colors: null, font: 'serif', scale: 'm',
-    eyebrow: "You're invited", tagline: '', note: '', showHost: true, imageToken: '', imageCaption: '',
+    style: 'blue', font: 'sans', scale: 'm',
+    eyebrow: "You're invited", tagline: '', note: '', showHost: true,
+    imageColumns: 1, imageTokens: [], imageCaptions: [], imageToken: '', imageCaption: '',
   },
 };
 

@@ -79,9 +79,9 @@ setSetting(db, 'sender_email', 'invites@example.org');
 
 // --- event 1: published picnic with responses ------------------------------
 const picnicFlyer = JSON.stringify({
-  style: 'festive', paletteId: 'garden', font: 'friendly', scale: 'm',
+  style: 'white', font: 'sans', scale: 'm',
   eyebrow: "You're invited", tagline: 'Bring a dish, bring a friend!',
-  note: 'Rain location: the community hall', showHost: true, imageToken: '',
+  note: 'Rain location: the community hall', showHost: true,
 });
 const picnicId = insertId(db.prepare(`
   INSERT INTO events (slug, title, description, host_name, venue_name, venue_address, date,
@@ -150,7 +150,7 @@ db.prepare(`
   'Clubhouse',
   '12 Main Street, Springfield',
   daysFromNow(35), '17:00', '20:00',
-  JSON.stringify({ style: 'modern', paletteId: 'ocean', font: 'sans', scale: 'm', eyebrow: 'Open house', tagline: 'Everyone welcome', note: '', showHost: false, imageToken: '' })
+  JSON.stringify({ style: 'landscape', font: 'sans', scale: 'm', eyebrow: 'Open house', tagline: 'Everyone welcome', note: '', showHost: false })
 );
 
 // --- event 3: a draft the wizard can pick up -------------------------------
@@ -165,7 +165,7 @@ db.prepare(`
   'The Events Committee',
   'Grand Hall',
   daysFromNow(90), '18:30',
-  JSON.stringify({ style: 'classic', paletteId: 'midnight', font: 'elegant', scale: 'm', eyebrow: 'Save the date', tagline: 'An evening of dinner and dancing', note: 'Black tie optional', showHost: true, imageToken: '' })
+  JSON.stringify({ style: 'retro', font: 'sans', scale: 'm', eyebrow: 'Save the date', tagline: 'An evening of dinner and dancing', note: 'Black tie optional', showHost: true })
 );
 
 console.log('');
